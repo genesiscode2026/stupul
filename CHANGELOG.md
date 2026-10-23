@@ -1,5 +1,24 @@
 # STUPUL — Jurnal de Schimbări (CHANGELOG)
 
+## [1.1.1-audit] — 23.10.2026 (Audit independent Cline)
+
+### Ops — Start/Stop
+- Lansatoare `START_STUPUL.command` / `STOP_STUPUL.command` întărite (rezolvare cale prin symlink, detecție procese duplicate, verificare strictă a identității procesului înainte de SIGTERM, fără `killall`/`pkill`).
+- Adăugate butoane Desktop: `STUPUL_START.command`, `STUPUL_STOP.command`.
+- Reconstruită `STUPUL_CONTROL.app` auto-localizantă (cale proiect fixă), cu 3 acțiuni: Pornește Jocul / Deschide Jocul / Oprește Jocul.
+- Verificate 3 cicluri complete START → HTTP 200 → STOP → proces oprit, fără a afecta procesul CRYCASH de pe portul 5173.
+
+### QA & Corecturi
+- `npm run typecheck` reparat (referințe de proiect TypeScript + `tsconfig.json` rădăcină) — acum rulează real.
+- `npm run lint` înlocuit din `echo` fals cu ESLint real (typescript-eslint + react-hooks).
+- React aliniat la v18 (rădăcină + web) — elimină eroarea de tipare lucide-react/React 19.
+- Corectat bug real: butonul „Ghid" (tutorial) arunca `ReferenceError: onOpenTutorial is not defined`.
+- Corectat algoritmul de plafonare 5% (guvernanță): redistribuirea nu mai pierde silențios ponderea în distribuții extreme cu scoruri zero; adăugată verificarea „suma = 100%".
+- Eliminat cod mort (importuri nefolosite, variabile dead).
+
+### Teste
+- 33 de teste automate rulate cu Vitest: **33 trecute, 0 eșuate** (14 guvernanță, 7 redevențe, 7 simulare, 5 stres/securitate).
+
 ## [1.1.0-genesis] — 23.10.2026
 
 ### Arhitectură & Infrastructură Locală (Zero-Cost / Free-Tier)
@@ -36,5 +55,5 @@
 - **LEG-007 & LEG-T07**: Excluderea automată a fondatorului pasiv din rolurile operaționale de administrare a firmei.
 
 ### Testare & Verificare
-- 26 de teste automate unitare și de integrare rulate cu Vitest: **26 trecute, 0 eșuate**.
+- 33 de teste automate rulate cu Vitest: **33 trecute, 0 eșuate**.
 - Verificare build de producție Vite: **1.23s, 0 erori**.
