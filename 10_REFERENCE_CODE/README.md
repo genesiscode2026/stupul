@@ -1,0 +1,2 @@
+# Cod de referință — NU pune direct în producție
+`contracts.ts` oferă tipuri și 4 funcții demonstrative pentru a preveni interpretări diferite de Antigravity. Nu include identitate anti-Sybil, gestiunea banilor reali, aprobări oficiale, audit, autentificare, protecție juridică executorie ori partea de joc. Implementarea trebuie să folosească aritmetică monetară decimală cu precizie fixă, nu numere `number` în producție. Testele contractelor juridice sunt teste ale aplicației, nu certificare juridică.

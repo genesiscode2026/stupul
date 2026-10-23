@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-sand: #d4b886;
+  --color-wood: #5a3825;
+  --color-darkwood: #2c1810;
+  --color-gold: #c59b27;
+  --color-iron: #4a5568;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #12100e;
+  color: #f3efe6;
+  overflow: hidden;
+  user-select: none;
+}
+
+h1, h2, h3, .font-title {
+  font-family: 'Cinzel', serif;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1c1815;
+}
+::-webkit-scrollbar-thumb {
+  background: #4a3828;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6a523b;
+}
+
+/* Glass & Frontier Panel Styling */
+.frontier-panel {
+  background: linear-gradient(135deg, rgba(32, 25, 20, 0.95) 0%, rgba(20, 16, 12, 0.98) 100%);
+  border: 1px solid rgba(197, 155, 39, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.frontier-button {
+  background: linear-gradient(180deg, #443122 0%, #291b12 100%);
+  border: 1px solid #755536;
+  color: #f7eedb;
+  transition: all 0.15s ease-in-out;
+}
+.frontier-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #5b422e 0%, #3d2719 100%);
+  border-color: #c59b27;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.frontier-button:active:not(:disabled) {
+  transform: translateY(1px);
+  background: #241710;
+}
+.frontier-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.gold-glow {
+  text-shadow: 0 0 10px rgba(197, 155, 39, 0.5);
+}

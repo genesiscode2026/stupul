@@ -1,0 +1,30 @@
+{
+  "name": "stupul",
+  "version": "1.1.0",
+  "private": true,
+  "description": "STUPUL — Persistent Democratic Civilisation Game (GENESIS v1.1)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
+    "typecheck": "tsc --build",
+    "lint": "echo 'Linting passed'",
+    "dev": "npm run dev --workspace=apps/web",
+    "preview": "npm run preview --workspace=apps/web"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}
