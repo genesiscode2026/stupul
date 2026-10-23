@@ -154,9 +154,55 @@ describe('Matricea Atomică de Guvernanță (GOV-T01 — GOV-T12)', () => {
     const weights = calculateContributorWeights(contributorIds, contributions, now);
 
     expect(weights.size).toBe(25);
+    let totalWeight = 0;
     for (const [, w] of weights.entries()) {
       expect(w).toBeLessThanOrEqual(0.050001); // Strict <= 5% cap
+      totalWeight += w;
     }
+    expect(totalWeight).toBeCloseTo(1.0, 5); // 100% of chamber weight must be preserved
+  });
+
+  it('GOV-T07-extrem: 20 contributori, unul cu tot meritul (ceilalți 0) => nicio greutate > 5% și suma exact 100%', () => {
+    const contributorIds = Array.from({ length: 20 }, (_, i) => `extrem_${i + 1}`);
+    const contributions: Contribution[] = [
+      {
+        id: 'c-extrem',
+        actorId: 'extrem_1',
+        kind: 'code',
+        evidenceHash: 'h',
+        licenseAcceptanceRef: 'cla',
+        rubricScore: 100,
+        impactWeight: 3,
+        reviewerIds: ['extrem_2'],
+        reviewerIndependent: true,
+        conflictsDeclared: false,
+        testsPassed: true,
+        mergedAndDelivered: true,
+        isSpamOrFakeTraffic: false,
+        acceptedAtMs: 10000,
+        revoked: false
+      }
+    ];
+    const weights = calculateContributorWeights(contributorIds, contributions, 10000);
+    let sum = 0;
+    for (const id of contributorIds) {
+      const w = weights.get(id)!;
+      expect(w).toBeLessThanOrEqual(0.050001);
+      sum += w;
+    }
+    expect(weights.get('extrem_1')).toBeCloseTo(0.05, 5);
+    expect(sum).toBeCloseTo(1.0, 5);
+  });
+
+  it('GOV-T07-egal20: exact 20 contributori fără merit => 5% egal pentru fiecare (sumă 100%)', () => {
+    const contributorIds = Array.from({ length: 20 }, (_, i) => `egal_${i + 1}`);
+    const weights = calculateContributorWeights(contributorIds, [], 10000);
+    let sum = 0;
+    for (const id of contributorIds) {
+      expect(weights.get(id)).toBeCloseTo(0.05, 5);
+      sum += weights.get(id)!;
+    }
+    expect(sum).toBeCloseTo(1.0, 5);
   });
 
   it('GOV-T08: decizie constituțională fără 2/3 în ambele camere este respinsă; fără 7z dezbatere sau 72h timelock este neexecutabilă', () => {

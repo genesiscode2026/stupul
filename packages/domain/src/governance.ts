@@ -67,49 +67,55 @@ export function calculateContributorWeights(
   }
 
   const MAX_CAP = 0.05;
-  // Iterative redistribution algorithm with 5% cap
+  const EPSILON = 1e-6;
+
+  // Start with merit-proportional weights (they sum to exactly 1).
   const weights = new Map<ActorId, number>();
   for (const id of contributorIds) {
     weights.set(id, (rawMerits.get(id) || 0) / totalMerit);
   }
 
-  let capped = true;
-  let iterations = 0;
-  const maxIterations = 50;
-
-  while (capped && iterations < maxIterations) {
-    iterations++;
-    capped = false;
+  // Freeze-and-redistribute: any contributor above the 5% cap is frozen at 5%,
+  // and the excess is redistributed EQUALLY among the not-yet-frozen contributors.
+  // With >= 20 eligible contributors the cap is always satisfiable (20 * 5% = 100%),
+  // including extreme distributions where many contributors have zero merit.
+  const frozen = new Set<ActorId>();
+  for (let iter = 0; iter < contributorIds.length; iter++) {
     let excess = 0;
-    let uncappedWeightSum = 0;
-
-    for (const [id, w] of weights.entries()) {
+    const uncapped: ActorId[] = [];
+    for (const id of contributorIds) {
+      if (frozen.has(id)) continue;
+      const w = weights.get(id) || 0;
       if (w > MAX_CAP) {
-        excess += (w - MAX_CAP);
+        excess += w - MAX_CAP;
         weights.set(id, MAX_CAP);
-        capped = true;
-      } else if (w < MAX_CAP) {
-        uncappedWeightSum += w;
+        frozen.add(id);
+      } else {
+        uncapped.push(id);
       }
     }
-
-    if (excess > 0 && uncappedWeightSum > 0) {
-      for (const [id, w] of weights.entries()) {
-        if (w < MAX_CAP) {
-          const added = excess * (w / uncappedWeightSum);
-          weights.set(id, w + added);
-        }
-      }
+    if (excess <= EPSILON) break;
+    if (uncapped.length === 0) {
+      throw new Error('GOV-T07: impossible to satisfy the 5% cap with this merit distribution');
+    }
+    const share = excess / uncapped.length;
+    for (const id of uncapped) {
+      weights.set(id, (weights.get(id) || 0) + share);
     }
   }
 
-  // Final verification: ensure no contributor exceeds MAX_CAP + epsilon
-  const EPSILON = 1e-6;
-  for (const [id, w] of weights.entries()) {
+  // Final verification: no weight exceeds the cap AND the weights sum to 1.
+  let sum = 0;
+  for (const id of contributorIds) {
+    const w = weights.get(id) || 0;
     if (w > MAX_CAP + EPSILON) {
       throw new Error(`GOV-T07: Contributor ${id} exceeds 5% cap (${w.toFixed(4)} > ${MAX_CAP})`);
     }
+    sum += w;
     result.set(id, w);
+  }
+  if (Math.abs(sum - 1) > EPSILON) {
+    throw new Error(`GOV-T07: weights do not sum to 1 (got ${sum.toFixed(4)}); decision halted`);
   }
 
   return result;
