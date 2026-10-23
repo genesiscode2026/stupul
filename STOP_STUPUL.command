@@ -1,71 +1,92 @@
 #!/bin/bash
-set -e
+set -uo pipefail
 
 # ========================================================
 # STUPUL GENESIS v1.1 — Oprire Sigură macOS
 # ========================================================
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUNTIME_DIR="$SCRIPT_DIR/runtime"
+resolve_script_path() {
+  local target="$1"
+  while [ -L "$target" ]; do
+    local dir link
+    dir="$(cd -P "$(dirname "$target")" 2>/dev/null && pwd)"
+    link="$(readlink "$target")"
+    case "$link" in
+      /*) target="$link" ;;
+      *) target="$dir/$link" ;;
+    esac
+  done
+  cd -P "$(dirname "$target")" 2>/dev/null && pwd
+}
+
+PROJECT_DIR="$(resolve_script_path "$0")"
+RUNTIME_DIR="$PROJECT_DIR/runtime"
 PID_FILE="$RUNTIME_DIR/stupul.pid"
 PORT_FILE="$RUNTIME_DIR/stupul.port"
+
+say()  { echo "[INFO] $*"; }
+warn() { echo "[AVERTISMENT] $*"; }
+err()  { echo "[EROARE DE SIGURANȚĂ] $*"; }
 
 echo "========================================================"
 echo "          STUPUL — OPRIRE SERVER LOCAL                 "
 echo "========================================================"
 
 if [ ! -f "$PID_FILE" ]; then
-  echo "[INFO] Nu a fost găsit niciun server STUPUL activ (fișierul PID lipsește)."
-  echo "Serverul este deja oprit."
+  say "Nu a fost găsit niciun server STUPUL activ (fișierul PID lipsește)."
+  say "Serverul este deja oprit."
   exit 0
 fi
 
-TARGET_PID=$(cat "$PID_FILE" 2>/dev/null || true)
-
+TARGET_PID="$(tr -d '[:space:]' < "$PID_FILE")"
 if [ -z "$TARGET_PID" ]; then
-  echo "[INFO] Fișierul PID este gol. Se curăță starea runtime."
+  say "Fișierul PID este gol. Curăț starea runtime."
   rm -f "$PID_FILE" "$PORT_FILE"
   exit 0
 fi
 
-# Verificare că procesul există și că aparține într-adevăr serverului STUPUL
-if ! ps -p "$TARGET_PID" > /dev/null 2>&1; then
-  echo "[INFO] Procesul cu PID $TARGET_PID nu mai rulează. Se curăță fișierele de stare."
+# Verifică identitatea procesului înainte de orice semnal
+if ! ps -p "$TARGET_PID" >/dev/null 2>&1; then
+  say "Procesul $TARGET_PID nu mai rulează. Curăț fișierele de stare."
   rm -f "$PID_FILE" "$PORT_FILE"
-  echo "Serverul este oprit."
   exit 0
 fi
 
-CMD_LINE=$(ps -p "$TARGET_PID" -o command= 2>/dev/null || true)
-if ! echo "$CMD_LINE" | grep -Eq "vite|stupul"; then
-  echo "[EROARE DE SIGURANȚĂ] Procesul $TARGET_PID nu pare să fie serverul STUPUL!"
-  echo "Comandă identificată: $CMD_LINE"
-  echo "Oprire abandonată pentru a preveni oprirea accidentală a altor procese."
+CMD_LINE="$(ps -p "$TARGET_PID" -o command= 2>/dev/null || true)"
+if ! echo "$CMD_LINE" | grep -q "$PROJECT_DIR"; then
+  err "Procesul $TARGET_PID NU este serverul STUPUL (comandă: $CMD_LINE)."
+  err "Oprirea a fost abandonată pentru a nu afecta alte proiecte."
   exit 1
 fi
 
-echo "[INFO] Se oprește în siguranță serverul STUPUL (PID: $TARGET_PID)..."
+say "Opresc în siguranță serverul STUPUL (PID $TARGET_PID)..."
 kill -TERM "$TARGET_PID" 2>/dev/null || true
 
-# Așteptare până la 5 secunde pentru oprirea completă
-WAIT_COUNT=0
-while ps -p "$TARGET_PID" > /dev/null 2>&1 && [ $WAIT_COUNT -lt 5 ]; do
+for i in $(seq 1 8); do
+  if ! ps -p "$TARGET_PID" >/dev/null 2>&1; then
+    break
+  fi
   sleep 1
-  WAIT_COUNT=$((WAIT_COUNT + 1))
 done
 
-if ps -p "$TARGET_PID" > /dev/null 2>&1; then
-  echo "[INFO] Procesul nu a răspuns la semnalul graceful. Se forțează oprirea (SIGKILL)..."
+if ps -p "$TARGET_PID" >/dev/null 2>&1; then
+  say "Procesul nu a răspuns la SIGTERM. Forțez oprirea (SIGKILL) doar a acestui PID..."
   kill -9 "$TARGET_PID" 2>/dev/null || true
   sleep 1
+fi
+
+SAVED_PORT="$(tr -d '[:space:]' < "$PORT_FILE" 2>/dev/null || true)"
+if [ -n "$SAVED_PORT" ] && lsof -i :"$SAVED_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  warn "Portul $SAVED_PORT pare încă ocupat de alt proces; NU îl opresc (nu este STUPUL)."
+else
+  say "Portul $SAVED_PORT a fost eliberat."
 fi
 
 rm -f "$PID_FILE" "$PORT_FILE"
 
 echo "========================================================"
-echo "  STUPUL a fost oprit cu succes."
-echo "  Procesul $TARGET_PID a fost eliberat."
-echo "  Datele de joc și salvările au rămas intacte."
+say "STUPUL a fost oprit cu succes."
+say "Procesul $TARGET_PID a fost eliberat."
+say "Datele de joc și salvările au rămas intacte."
 echo "========================================================"
-
 exit 0

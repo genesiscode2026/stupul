@@ -1,145 +1,173 @@
 #!/bin/bash
-set -e
+set -uo pipefail
 
 # ========================================================
 # STUPUL GENESIS v1.1 — Lansator Oficial macOS
 # ========================================================
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+# Rezolvă directorul real al proiectului, inclusiv când scriptul
+# este apelat printr-un symlink de pe Desktop (macOS nu are readlink -f).
+resolve_script_path() {
+  local target="$1"
+  while [ -L "$target" ]; do
+    local dir link
+    dir="$(cd -P "$(dirname "$target")" 2>/dev/null && pwd)"
+    link="$(readlink "$target")"
+    case "$link" in
+      /*) target="$link" ;;
+      *) target="$dir/$link" ;;
+    esac
+  done
+  cd -P "$(dirname "$target")" 2>/dev/null && pwd
+}
 
-RUNTIME_DIR="$SCRIPT_DIR/runtime"
+PROJECT_DIR="$(resolve_script_path "$0")"
+RUNTIME_DIR="$PROJECT_DIR/runtime"
 mkdir -p "$RUNTIME_DIR"
 PID_FILE="$RUNTIME_DIR/stupul.pid"
 PORT_FILE="$RUNTIME_DIR/stupul.port"
 LOG_FILE="$RUNTIME_DIR/stupul.log"
 
-PORT=5173
+say()  { echo "[INFO] $*"; }
+warn() { echo "[AVERTISMENT] $*"; }
+err()  { echo "[EROARE CRITICĂ] $*"; }
 
 echo "========================================================"
 echo "          STUPUL — CIVILIZAȚIE PERSISTENTĂ             "
 echo "                 GENESIS v1.1                           "
 echo "========================================================"
-echo "Director proiect: $SCRIPT_DIR"
+say "Director proiect: $PROJECT_DIR"
 
-# 1. Verificare dacă serverul rulează deja
+# Verifică dacă un PID dat este serverul STUPUL (proces viu + comandă care referă proiectul)
+is_stupul_pid() {
+  local pid="$1"
+  [ -n "$pid" ] || return 1
+  ps -p "$pid" >/dev/null 2>&1 || return 1
+  local cmd
+  cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  echo "$cmd" | grep -q "$PROJECT_DIR"
+}
+
+# Portul pe care ascultă un proces dat (sau gol)
+port_of_pid() {
+  lsof -nP -iTCP -sTCP:LISTEN -a -p "$1" 2>/dev/null | awk 'NR>1{print $9}' | sed -E 's/.*:([0-9]+)$/\1/' | head -n 1
+}
+
+open_browser() {
+  say "Deschid jocul în browser: $1"
+  open "$1" 2>/dev/null || true
+}
+
+# 1. Dacă există deja un proces STUPUL viu (PID file valid), deschidem doar browserul
 if [ -f "$PID_FILE" ]; then
-  EXISTING_PID=$(cat "$PID_FILE" 2>/dev/null || true)
-  if [ -n "$EXISTING_PID" ] && ps -p "$EXISTING_PID" > /dev/null 2>&1; then
-    CMD_LINE=$(ps -p "$EXISTING_PID" -o command= 2>/dev/null || true)
-    if echo "$CMD_LINE" | grep -Eq "vite|stupul"; then
-      SAVED_PORT=$(cat "$PORT_FILE" 2>/dev/null || echo "5173")
-      echo "[INFO] STUPUL rulează deja la PID $EXISTING_PID pe http://127.0.0.1:$SAVED_PORT"
-      echo "[INFO] Deschid jocul în browser..."
-      open "http://127.0.0.1:$SAVED_PORT"
-      exit 0
-    else
-      echo "[AVERTISMENT] PID-ul vechi ($EXISTING_PID) nu aparține STUPUL. Curăț fișierul stale."
-      rm -f "$PID_FILE"
-    fi
-  else
-    rm -f "$PID_FILE"
+  EXISTING_PID="$(tr -d '[:space:]' < "$PID_FILE")"
+  if is_stupul_pid "$EXISTING_PID"; then
+    SAVED_PORT="$(tr -d '[:space:]' < "$PORT_FILE" 2>/dev/null || true)"
+    SAVED_PORT="${SAVED_PORT:-5173}"
+    say "STUPUL rulează deja (PID $EXISTING_PID) pe http://127.0.0.1:$SAVED_PORT"
+    open_browser "http://127.0.0.1:$SAVED_PORT"
+    exit 0
   fi
+  warn "PID-ul vechi ($EXISTING_PID) nu mai aparține STUPUL. Curăț fișierul de stare."
+  rm -f "$PID_FILE" "$PORT_FILE"
+fi
+
+# 1b. Caută orice proces vite/Node orfan care rulează deja pentru acest proiect
+ORPHAN_PID=""
+for pid in $(pgrep -f "vite" 2>/dev/null); do
+  if is_stupul_pid "$pid"; then
+    ORPHAN_PID="$pid"
+    break
+  fi
+done
+if [ -n "$ORPHAN_PID" ]; then
+  ORPHAN_PORT="$(port_of_pid "$ORPHAN_PID")"
+  ORPHAN_PORT="${ORPHAN_PORT:-5173}"
+  echo "$ORPHAN_PID" > "$PID_FILE"
+  echo "$ORPHAN_PORT" > "$PORT_FILE"
+  say "Am detectat serverul STUPUL deja pornit (PID $ORPHAN_PID) pe http://127.0.0.1:$ORPHAN_PORT"
+  open_browser "http://127.0.0.1:$ORPHAN_PORT"
+  exit 0
 fi
 
 # 2. Verificare Node.js și npm
 if ! command -v node >/dev/null 2>&1; then
-  echo "[EROARE CRITICĂ] Node.js nu a fost găsit în PATH!"
-  echo "Vă rugăm să instalați Node.js (https://nodejs.org) pentru a rula STUPUL."
-  read -p "Apăsați Enter pentru a ieși..."
+  err "Node.js nu a fost găsit în PATH! Instalați Node.js (https://nodejs.org)."
   exit 1
 fi
-
 if ! command -v npm >/dev/null 2>&1; then
-  echo "[EROARE CRITICĂ] npm nu a fost găsit în PATH!"
-  read -p "Apăsați Enter pentru a ieși..."
+  err "npm nu a fost găsit în PATH!"
   exit 1
 fi
-
-NODE_VER=$(node -v)
-echo "[INFO] Mediu detectat: Node.js $NODE_VER"
+say "Mediu detectat: Node.js $(node -v)"
 
 # 3. Verificare dependențe instalate
-if [ ! -d "node_modules" ] || [ ! -d "node_modules/vite" ]; then
-  echo "[INFO] Se instalează dependențele necesare..."
-  npm install >> "$LOG_FILE" 2>&1
+if [ ! -d "$PROJECT_DIR/node_modules" ] || [ ! -d "$PROJECT_DIR/node_modules/vite" ]; then
+  say "Instalez dependențele necesare (poate dura puțin)..."
+  ( cd "$PROJECT_DIR" && npm install ) >> "$LOG_FILE" 2>&1
 fi
 
-# 4. Verificare disponibilitate port (fallback sigur dacă portul 5173 este ocupat)
-check_port() {
-  local p=$1
-  if lsof -i :"$p" -sTCP:LISTEN >/dev/null 2>&1; then
-    return 1 # Port ocupat
-  else
-    return 0 # Port liber
+# 4. Găsește un port liber începând cu 5173 (fără a deranja alte proiecte)
+port_free() { ! lsof -i :"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+
+TARGET_PORT=""
+for p in $(seq 5173 5180); do
+  if port_free "$p"; then
+    TARGET_PORT="$p"
+    break
   fi
-}
-
-TARGET_PORT=$PORT
-if ! check_port $TARGET_PORT; then
-  echo "[INFO] Portul $TARGET_PORT este ocupat de alt proces. Caut port liber..."
-  for p in 5174 5175 5176 5177 5178 5179; do
-    if check_port $p; then
-      TARGET_PORT=$p
-      break
-    fi
-  done
+done
+if [ -z "$TARGET_PORT" ]; then
+  err "Niciun port liber în intervalul 5173–5180. Eliberați un port și reîncercați."
+  exit 1
 fi
+say "Port selectat: 127.0.0.1:$TARGET_PORT"
 
-echo "[INFO] Se pornește serverul STUPUL pe 127.0.0.1:$TARGET_PORT..."
-
-# 5. Pornire server Vite în fundal, legat exclusiv la 127.0.0.1
-cd "$SCRIPT_DIR/apps/web"
-nohup node "$SCRIPT_DIR/node_modules/vite/bin/vite.js" --host 127.0.0.1 --port "$TARGET_PORT" < /dev/null >> "$LOG_FILE" 2>&1 &
+# 5. Pornește serverul Vite legat exclusiv la 127.0.0.1
+say "Pornesc serverul STUPUL în fundal..."
+(
+  cd "$PROJECT_DIR/apps/web" || exit 1
+  exec nohup node "$PROJECT_DIR/node_modules/vite/bin/vite.js" \
+    --host 127.0.0.1 --port "$TARGET_PORT" \
+    < /dev/null >> "$LOG_FILE" 2>&1
+) &
 SERVER_PID=$!
-disown $SERVER_PID
-cd "$SCRIPT_DIR"
+disown "$SERVER_PID" 2>/dev/null || true
 
 echo "$SERVER_PID" > "$PID_FILE"
 echo "$TARGET_PORT" > "$PORT_FILE"
-echo "[INFO] Server lansat în fundal (PID: $SERVER_PID). Jurnal: $LOG_FILE"
+say "Server lansat (PID: $SERVER_PID). Jurnal: $LOG_FILE"
 
-# 6. Așteptare confirmare HTTP (până la 20 de secunde)
-MAX_WAIT=20
-WAIT_COUNT=0
+# 6. Așteaptă răspuns HTTP 200 (max 25 secunde)
+MAX_WAIT=25
 READY=0
-
-echo -n "[INFO] Aștept confirmarea pornirii serverului HTTP"
-while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-  if ! ps -p "$SERVER_PID" > /dev/null 2>&1; then
-    echo ""
-    echo "[EROARE CRITICĂ] Serverul s-a oprit neașteptat la pornire!"
-    tail -n 25 "$LOG_FILE"
+for i in $(seq 1 "$MAX_WAIT"); do
+  if ! ps -p "$SERVER_PID" >/dev/null 2>&1; then
+    err "Serverul s-a oprit neașteptat la pornire."
+    echo "--- Ultimele rânduri din jurnal ---"
+    tail -n 25 "$LOG_FILE" 2>/dev/null || true
     rm -f "$PID_FILE" "$PORT_FILE"
-    read -p "Apăsați Enter pentru a închide..."
     exit 1
   fi
-
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$TARGET_PORT" || true)
-  if [ "$HTTP_CODE" = "200" ]; then
+  CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$TARGET_PORT" 2>/dev/null || true)"
+  if [ "$CODE" = "200" ]; then
     READY=1
     break
   fi
-
-  echo -n "."
   sleep 1
-  WAIT_COUNT=$((WAIT_COUNT + 1))
 done
-echo ""
 
-if [ $READY -eq 1 ]; then
-  URL="http://127.0.0.1:$TARGET_PORT"
+if [ "$READY" = "1" ]; then
   echo "========================================================"
-  echo "  STUPUL a pornit cu succes!"
-  echo "  Adresă: $URL (Exclusiv local)"
-  echo "  PID: $SERVER_PID"
+  say "STUPUL a pornit cu succes!"
+  say "Adresă: http://127.0.0.1:$TARGET_PORT (exclusiv local)"
+  say "PID: $SERVER_PID"
   echo "========================================================"
-  echo "[INFO] Se deschide jocul în browser..."
-  open "$URL"
+  open_browser "http://127.0.0.1:$TARGET_PORT"
 else
-  echo "[AVERTISMENT] Serverul a pornit (PID $SERVER_PID), dar nu a răspuns în timp util pe HTTP."
-  echo "Puteți deschide manual: http://127.0.0.1:$TARGET_PORT"
-  open "http://127.0.0.1:$TARGET_PORT"
+  warn "Serverul a pornit (PID $SERVER_PID), dar nu a răspuns HTTP în $MAX_WAIT s."
+  warn "Încercați manual: http://127.0.0.1:$TARGET_PORT"
+  open_browser "http://127.0.0.1:$TARGET_PORT"
 fi
 
 exit 0
