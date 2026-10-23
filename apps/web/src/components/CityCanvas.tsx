@@ -199,6 +199,9 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
         }
       }
 
+      // 4. Draw Animated Living Citizens (walking between road nodes)
+      drawSimulatedCitizens(ctx, zoom, offset, time);
+
       ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
@@ -372,6 +375,54 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
     ctx.restore();
   };
 
+  // Helper to draw little animated citizens walking around roads and buildings
+  const drawSimulatedCitizens = (
+    ctx: CanvasRenderingContext2D,
+    z: number,
+    off: { x: number; y: number },
+    time: number
+  ) => {
+    ctx.save();
+    // Locate core road and active building parcels
+    const hubs: Array<{ x: number; y: number }> = [
+      { x: 7, y: 7 }, { x: 8, y: 7 }, { x: 7, y: 8 }, { x: 6, y: 7 }, { x: 9, y: 7 }
+    ];
+
+    for (let i = 0; i < hubs.length; i++) {
+      const from = hubs[i];
+      const to = hubs[(i + 1) % hubs.length];
+      const progress = ((time * 0.3 + i * 0.2) % 1);
+
+      const curGx = from.x + (to.x - from.x) * progress;
+      const curGy = from.y + (to.y - from.y) * progress;
+
+      const scr = gridToScreen(curGx, curGy, z, off);
+      const walkBounce = Math.abs(Math.sin(time * 8 + i)) * 3 * z;
+
+      // Small shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(scr.x, scr.y + 16 * z, 4 * z, 2 * z, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body (vest/shirt)
+      ctx.fillStyle = i % 2 === 0 ? '#1e3a8a' : '#b45309';
+      ctx.fillRect(scr.x - 2 * z, scr.y + 7 * z - walkBounce, 4 * z, 6 * z);
+
+      // Head
+      ctx.fillStyle = '#fbcfe8';
+      ctx.beginPath();
+      ctx.arc(scr.x, scr.y + 4 * z - walkBounce, 2.5 * z, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Frontier hat
+      ctx.fillStyle = '#451a03';
+      ctx.fillRect(scr.x - 4 * z, scr.y + 2 * z - walkBounce, 8 * z, 1.5 * z);
+      ctx.fillRect(scr.x - 2 * z, scr.y - walkBounce, 4 * z, 2.5 * z);
+    }
+    ctx.restore();
+  };
+
   // Mouse / Touch Event Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 0) {
@@ -404,13 +455,51 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isDragging) {
       setIsDragging(false);
-      // If drag distance was very small, treat as click
       const dist = Math.hypot(e.clientX - (dragStart.x + offset.x), e.clientY - (dragStart.y + offset.y));
       if (dist < 4 && hoveredCoord) {
         if (activeBuildTool) {
           onBuildOnCell(hoveredCoord.x, hoveredCoord.y);
         } else {
           onSelectCoord(hoveredCoord);
+        }
+      }
+    }
+  };
+
+  // Mobile Touch Gestures (drag to pan & tap to select)
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (isDragging && e.touches.length === 1) {
+      const touch = e.touches[0];
+      setOffset({
+        x: touch.clientX - dragStart.x,
+        y: touch.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (isDragging) {
+      setIsDragging(false);
+      if (e.changedTouches.length === 1 && canvasRef.current) {
+        const touch = e.changedTouches[0];
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = touch.clientX - rect.left;
+        const mouseY = touch.clientY - rect.top;
+        const gridPos = screenToGrid(mouseX, mouseY, zoom, offset);
+        if (gridPos.x >= 0 && gridPos.x < state.gridWidth && gridPos.y >= 0 && gridPos.y < state.gridHeight) {
+          if (activeBuildTool) {
+            onBuildOnCell(gridPos.x, gridPos.y);
+          } else {
+            onSelectCoord(gridPos);
+          }
         }
       }
     }
@@ -423,13 +512,16 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none">
+    <div className="relative w-full h-full overflow-hidden select-none touch-none">
       <canvas
         ref={canvasRef}
         className="w-full h-full block cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
       />
 

@@ -150,11 +150,18 @@ export function evaluateBicameralDecision(
   contributorBallots: Ballot[],
   contributorWeights: Map<ActorId, number>
 ): BicameralDecisionResult {
-  // 1. Tally citizen chamber (1 person = 1 vote)
+  // 1. Tally citizen chamber (1 person = 1 vote, strictly deduplicated by actorId)
+  const uniqueCitizenBallots = new Map<ActorId, Ballot>();
+  for (const b of citizenBallots) {
+    if (!uniqueCitizenBallots.has(b.actorId) || b.castAtMs > uniqueCitizenBallots.get(b.actorId)!.castAtMs) {
+      uniqueCitizenBallots.set(b.actorId, b);
+    }
+  }
+
   let citizenYes = 0;
   let citizenNo = 0;
   let citizenAbstain = 0;
-  for (const b of citizenBallots) {
+  for (const b of uniqueCitizenBallots.values()) {
     if (b.choice === 'yes') citizenYes += 1;
     else if (b.choice === 'no') citizenNo += 1;
     else citizenAbstain += 1;
@@ -162,19 +169,26 @@ export function evaluateBicameralDecision(
   const citizenTotal = citizenYes + citizenNo;
   const citizenApproval = citizenTotal > 0 ? citizenYes / citizenTotal : 0;
   const citizenTally: ChamberTally = {
-    totalBallots: citizenBallots.length,
+    totalBallots: uniqueCitizenBallots.size,
     yesWeight: citizenYes,
     noWeight: citizenNo,
     abstainWeight: citizenAbstain,
     approvalRatio: citizenApproval,
-    quorumMet: citizenBallots.length >= 1
+    quorumMet: uniqueCitizenBallots.size >= 1
   };
 
-  // 2. Tally contributor chamber
+  // 2. Tally contributor chamber (strictly deduplicated by actorId)
+  const uniqueContribBallots = new Map<ActorId, Ballot>();
+  for (const b of contributorBallots) {
+    if (!uniqueContribBallots.has(b.actorId) || b.castAtMs > uniqueContribBallots.get(b.actorId)!.castAtMs) {
+      uniqueContribBallots.set(b.actorId, b);
+    }
+  }
+
   let contribYes = 0;
   let contribNo = 0;
   let contribAbstain = 0;
-  for (const b of contributorBallots) {
+  for (const b of uniqueContribBallots.values()) {
     const weight = contributorWeights.get(b.actorId) ?? 0;
     if (b.choice === 'yes') contribYes += weight;
     else if (b.choice === 'no') contribNo += weight;
@@ -183,7 +197,7 @@ export function evaluateBicameralDecision(
   const contribTotal = contribYes + contribNo;
   const contribApproval = contribTotal > 0 ? contribYes / contribTotal : 0;
   const contributorTally: ChamberTally = {
-    totalBallots: contributorBallots.length,
+    totalBallots: uniqueContribBallots.size,
     yesWeight: contribYes,
     noWeight: contribNo,
     abstainWeight: contribAbstain,

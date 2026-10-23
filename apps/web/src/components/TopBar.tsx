@@ -13,7 +13,8 @@ import {
   Pickaxe, 
   History, 
   Scale,
-  ShieldCheck
+  ShieldCheck,
+  HelpCircle
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -26,6 +27,7 @@ interface TopBarProps {
   onOpenCivicTasks: () => void;
   onOpenTimeline: () => void;
   onOpenAuditLegal: () => void;
+  onOpenTutorial: () => void;
 }
 
 const STAGE_NAMES = {
@@ -180,6 +182,15 @@ export const TopBar: React.FC<TopBarProps> = ({
           title="Audit, Integritate & Redevențe Fondator"
         >
           <Scale className="w-3.5 h-3.5 text-amber-400" />
+        </button>
+
+        <button
+          onClick={onOpenTutorial}
+          className="frontier-button px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1 text-amber-300 border-amber-500/50"
+          title="Ghid & Tutorial Interactiv"
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden sm:inline">Ghid</span>
         </button>
       </div>
     </header>

@@ -180,8 +180,11 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
 
     case 'CLAIM_PARCEL': {
       const { x, y, actorId } = command;
-      if (x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
-        return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate de parcelă invalide' };
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate de parcelă invalide (trebuie întregi în limitele 0-15)' };
+      }
+      if (!actorId || typeof actorId !== 'string' || actorId.trim().length === 0) {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Identificator actor invalid' };
       }
       const parcel = state.grid[y][x];
 
@@ -209,7 +212,7 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
       }
 
       state.resources.virtualCredits -= cost;
-      parcel.ownerAccountId = actorId;
+      parcel.ownerAccountId = actorId.trim();
       parcel.claimedAtTick = state.tick;
       eventsEmitted.push(`Cetățeanul ${actorId} a achiziționat parcela virtuală (${x}, ${y}).`);
       break;
@@ -217,8 +220,11 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
 
     case 'CONSTRUCT_BUILDING': {
       const { x, y, buildingType, actorId } = command;
-      if (x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
         return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate invalide' };
+      }
+      if (!actorId || typeof actorId !== 'string' || actorId.trim().length === 0) {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Identificator actor invalid' };
       }
       const parcel = state.grid[y][x];
 
@@ -264,7 +270,7 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
       parcel.building = buildingType;
       parcel.level = 1;
       if (!parcel.ownerAccountId) {
-        parcel.ownerAccountId = actorId;
+        parcel.ownerAccountId = actorId.trim();
       }
       eventsEmitted.push(`A fost construită clădirea ${def.name} la (${x}, ${y}).`);
       break;
@@ -272,7 +278,7 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
 
     case 'UPGRADE_BUILDING': {
       const { x, y } = command;
-      if (x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
         return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate invalide' };
       }
       const parcel = state.grid[y][x];
@@ -300,6 +306,9 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
 
     case 'DEMOLISH_BUILDING': {
       const { x, y } = command;
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= state.gridWidth || y < 0 || y >= state.gridHeight) {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate invalide' };
+      }
       const parcel = state.grid[y][x];
       if (!parcel.building) {
         return { success: false, nextState: prevState, eventsEmitted, error: 'Nicio clădire de demolat' };
@@ -315,15 +324,44 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
 
     case 'SET_POLICY': {
       const { policyKey, value } = command;
-      if (policyKey in state.policies) {
-        (state.policies as any)[policyKey] = value;
-        eventsEmitted.push(`Politica publică ${String(policyKey)} a fost actualizată la ${value}.`);
+      const keyStr = String(policyKey);
+      if (keyStr === '__proto__' || keyStr === 'constructor' || keyStr === 'prototype') {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Tentativă de injectare securitate blocată' };
       }
+
+      if (policyKey === 'taxRatePercent') {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 30) {
+          return { success: false, nextState: prevState, eventsEmitted, error: 'Rata impozitului trebuie să fie număr între 0 și 30%' };
+        }
+        state.policies.taxRatePercent = Math.round(value);
+      } else if (policyKey === 'foodRationing') {
+        if (value !== 'austere' && value !== 'standard' && value !== 'abundant') {
+          return { success: false, nextState: prevState, eventsEmitted, error: 'Mod de raționalizare invalid (austere | standard | abundant)' };
+        }
+        state.policies.foodRationing = value;
+      } else if (policyKey === 'educationSubsidyPercent') {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 50) {
+          return { success: false, nextState: prevState, eventsEmitted, error: 'Subvenția pentru educație trebuie să fie între 0 și 50%' };
+        }
+        state.policies.educationSubsidyPercent = Math.round(value);
+      } else if (policyKey === 'infrastructureBudgetCredits') {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+          return { success: false, nextState: prevState, eventsEmitted, error: 'Bugetul de infrastructură trebuie să fie între 0 și 100 credite' };
+        }
+        state.policies.infrastructureBudgetCredits = Math.round(value);
+      } else {
+        return { success: false, nextState: prevState, eventsEmitted, error: `Politica ${String(policyKey)} este necunoscută` };
+      }
+
+      eventsEmitted.push(`Politica publică ${String(policyKey)} a fost actualizată la ${value}.`);
       break;
     }
 
     case 'ROTATE_PUZZLE_TILE': {
       const { x, y } = command;
+      if (!Number.isInteger(x) || !Number.isInteger(y)) {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Coordonate puzzle invalide' };
+      }
       const connectedBefore = state.infrastructurePuzzle.solved;
       rotateTile(state.infrastructurePuzzle, x, y);
       const connectedAfter = state.infrastructurePuzzle.solved;
@@ -351,11 +389,22 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
         state.resources.materials += 20;
         state.resources.virtualCredits += 10;
         eventsEmitted.push('Muncă la cariera de piatră: +20 materiale, +10 credite virtuale.');
-      } else {
+      } else if (taskKind === 'civic_duty') {
         state.resources.virtualCredits += 12;
         eventsEmitted.push('Serviciu civic public: +12 credite virtuale.');
+      } else {
+        return { success: false, nextState: prevState, eventsEmitted, error: 'Tip de sarcină civică necunoscută' };
       }
       break;
+    }
+
+    default: {
+      return { 
+        success: false, 
+        nextState: prevState, 
+        eventsEmitted, 
+        error: `Comandă necunoscută sau nepermisă: ${(command as any)?.type}` 
+      };
     }
   }
 

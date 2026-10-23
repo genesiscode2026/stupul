@@ -17,6 +17,7 @@ import { PuzzleModal } from './components/PuzzleModal.js';
 import { CivicTasksModal } from './components/CivicTasksModal.js';
 import { TimelineModal } from './components/TimelineModal.js';
 import { AuditLegalModal } from './components/AuditLegalModal.js';
+import { TutorialModal } from './components/TutorialModal.js';
 
 const storage = new OfflineStorage();
 
@@ -41,6 +42,13 @@ export const App: React.FC = () => {
   const [isCivicTasksOpen, setIsCivicTasksOpen] = useState<boolean>(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(false);
   const [isAuditLegalOpen, setIsAuditLegalOpen] = useState<boolean>(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('stupul_tutorial_seen');
+    } catch {
+      return false;
+    }
+  });
 
   // Auto-save on state change
   useEffect(() => {
@@ -117,6 +125,7 @@ export const App: React.FC = () => {
         onOpenCivicTasks={() => setIsCivicTasksOpen(true)}
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenAuditLegal={() => setIsAuditLegalOpen(true)}
+        onOpenTutorial={() => setIsTutorialOpen(true)}
       />
 
       {/* Main Interactive Map Viewport */}
@@ -187,6 +196,25 @@ export const App: React.FC = () => {
           state={gameState}
           onClose={() => setIsAuditLegalOpen(false)}
           onImportState={setGameState}
+        />
+      )}
+
+      {isTutorialOpen && (
+        <TutorialModal
+          onClose={() => {
+            setIsTutorialOpen(false);
+            try {
+              localStorage.setItem('stupul_tutorial_seen', '1');
+            } catch {}
+          }}
+          onOpenPuzzle={() => {
+            setIsTutorialOpen(false);
+            setIsPuzzleOpen(true);
+          }}
+          onOpenGovernance={() => {
+            setIsTutorialOpen(false);
+            setIsGovernanceOpen(true);
+          }}
         />
       )}
     </div>
