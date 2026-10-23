@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameState, PipeType } from '@stupul/engine';
-import { X, Droplets, RotateCw, CheckCircle2, Award } from 'lucide-react';
+import { X, Droplets, RotateCw, CheckCircle2 } from 'lucide-react';
 
 interface PuzzleModalProps {
   state: GameState;

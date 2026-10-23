@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   GameState, 
   createInitialState, 
   reduce, 
   EngineCommand, 
   BuildingType,
-  CityPolicies 
 } from '@stupul/engine';
 import { OfflineStorage } from '@stupul/shared';
 import { CityCanvas } from './components/CityCanvas.js';
@@ -206,14 +205,6 @@ export const App: React.FC = () => {
             try {
               localStorage.setItem('stupul_tutorial_seen', '1');
             } catch {}
-          }}
-          onOpenPuzzle={() => {
-            setIsTutorialOpen(false);
-            setIsPuzzleOpen(true);
-          }}
-          onOpenGovernance={() => {
-            setIsTutorialOpen(false);
-            setIsGovernanceOpen(true);
           }}
         />
       )}

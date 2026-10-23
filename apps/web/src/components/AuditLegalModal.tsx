@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { GameState } from '@stupul/engine';
 import { exportSnapshotToJson, validateAndImportSnapshot } from '@stupul/shared';
-import { calculateRoyalties, mayMonetize, DEFAULT_LOCKED_LEGAL_GATE } from '@stupul/domain';
+import { calculateRoyalties } from '@stupul/domain';
 import { 
   X, 
   Scale, 
-  ShieldCheck, 
   Download, 
   Upload, 
   Hash, 
-  AlertOctagon, 
-  CheckCircle2, 
   Calculator,
   Lock
 } from 'lucide-react';

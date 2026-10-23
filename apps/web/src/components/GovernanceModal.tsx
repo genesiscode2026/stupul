@@ -7,9 +7,7 @@ import {
   Code, 
   Vote, 
   Scale, 
-  Calendar, 
   CheckCircle2, 
-  AlertTriangle,
   Award
 } from 'lucide-react';
 

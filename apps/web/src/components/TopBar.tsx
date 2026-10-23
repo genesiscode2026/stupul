@@ -46,7 +46,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenPuzzle,
   onOpenCivicTasks,
   onOpenTimeline,
-  onOpenAuditLegal
+  onOpenAuditLegal,
+  onOpenTutorial
 }) => {
   return (
     <header className="w-full frontier-panel border-b border-amber-900/40 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-20">

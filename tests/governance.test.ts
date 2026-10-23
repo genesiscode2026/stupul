@@ -154,7 +154,7 @@ describe('Matricea Atomică de Guvernanță (GOV-T01 — GOV-T12)', () => {
     const weights = calculateContributorWeights(contributorIds, contributions, now);
 
     expect(weights.size).toBe(25);
-    for (const [id, w] of weights.entries()) {
+    for (const [, w] of weights.entries()) {
       expect(w).toBeLessThanOrEqual(0.050001); // Strict <= 5% cap
     }
   });

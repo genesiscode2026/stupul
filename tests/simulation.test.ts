@@ -3,13 +3,10 @@ import {
   createInitialState,
   reduce,
   SimulationHistory,
-  evaluatePuzzleConnectivity,
-  rotateTile
+  evaluatePuzzleConnectivity
 } from '../packages/engine/src/index.js';
 import {
-  exportSnapshotToJson,
-  validateAndImportSnapshot,
-  OfflineStorage
+  validateAndImportSnapshot
 } from '../packages/shared/src/index.js';
 import { checkRolePermission } from '../packages/domain/src/index.js';
 
@@ -65,7 +62,7 @@ describe('Motorul Deterministic și Simularea Urbană (STP-T01 — STP-T06, T-00
   });
 
   it('T-004: resurse insuficiente => comanda este respinsă și trezoreria rămâne neschimbată', () => {
-    let state = createInitialState(42);
+    const state = createInitialState(42);
     // Empty town materials
     state.resources.materials = 5;
     const initialCredits = state.resources.virtualCredits;
@@ -102,7 +99,7 @@ describe('Motorul Deterministic și Simularea Urbană (STP-T01 — STP-T06, T-00
   });
 
   it('STP-005: puzzle-ul de apeduct detectează conexiunea topologică și acordă recompensa', () => {
-    let state = createInitialState(42);
+    const state = createInitialState(42);
     const puzzle = state.infrastructurePuzzle;
     expect(puzzle.width).toBe(4);
     expect(puzzle.height).toBe(4);

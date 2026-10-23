@@ -8,9 +8,6 @@ function rightRotate(value: number, amount: number): number {
 }
 
 export function sha256(ascii: string): string {
-  const mathPow = Math.pow;
-  const maxWord = mathPow(2, 32);
-  let lengthProperty = 'length';
   let i = 0;
   let j = 0;
   let result = '';
@@ -18,7 +15,7 @@ export function sha256(ascii: string): string {
   const words: number[] = [];
   const asciiBitLength = ascii.length * 8;
 
-  let hash = [
+  const hash = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
     0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
   ];
@@ -34,7 +31,6 @@ export function sha256(ascii: string): string {
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0x0bef9a3f, 0xc67178f2
   ];
 
-  let compositeClearHex = '';
   words[asciiBitLength >> 5] |= 0x80 << (24 - (asciiBitLength % 32));
   words[(((asciiBitLength + 64) >> 9) << 4) + 15] = asciiBitLength;
 

@@ -15,14 +15,10 @@ import {
 
 interface TutorialModalProps {
   onClose: () => void;
-  onOpenPuzzle?: () => void;
-  onOpenGovernance?: () => void;
 }
 
 export const TutorialModal: React.FC<TutorialModalProps> = ({
-  onClose,
-  onOpenPuzzle,
-  onOpenGovernance
+  onClose
 }) => {
   const [step, setStep] = useState<number>(0);
 

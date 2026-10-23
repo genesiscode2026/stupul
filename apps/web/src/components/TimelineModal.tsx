@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, History, Scroll, Clock, FileCode } from 'lucide-react';
+import { X, History, Scroll, Clock } from 'lucide-react';
 
 interface TimelineModalProps {
   events: string[];

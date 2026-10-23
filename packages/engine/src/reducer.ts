@@ -1,8 +1,8 @@
-import { GameState, EngineCommand, CommandResult, BuildingType, SettlementStage } from './types.js';
+import { GameState, EngineCommand, CommandResult, SettlementStage } from './types.js';
 import { BUILDING_DEFINITIONS, PARCEL_BASE_PRICE_CREDITS } from './constants.js';
 import { PRNG } from './prng.js';
 import { computeStateHash } from './initialState.js';
-import { rotateTile, evaluatePuzzleConnectivity } from './puzzle.js';
+import { rotateTile } from './puzzle.js';
 
 /**
  * Deep-clones the game state cleanly.
@@ -36,7 +36,6 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
       let workshops = 0;
       let clinics = 0;
       let guardPosts = 0;
-      let roads = 0;
 
       for (let y = 0; y < state.gridHeight; y++) {
         for (let x = 0; x < state.gridWidth; x++) {
@@ -51,7 +50,6 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
           else if (b === 'workshop') workshops += lvl;
           else if (b === 'clinic') clinics += lvl;
           else if (b === 'guard_post') guardPosts += lvl;
-          else if (b === 'road') roads += 1;
         }
       }
 
@@ -87,7 +85,7 @@ export function reduce(prevState: GameState, command: EngineCommand): CommandRes
       state.resources.materials = Math.min(state.resources.maxMaterialsStorage, state.resources.materials + totalMaterialsProduced);
 
       // Materials upkeep
-      let totalMaterialsUpkeep = houses * 1 + farms * 1 + schools * 2 + townHalls * 2 + clinics * 1;
+      const totalMaterialsUpkeep = houses * 1 + farms * 1 + schools * 2 + townHalls * 2 + clinics * 1;
       if (state.resources.materials >= totalMaterialsUpkeep) {
         state.resources.materials -= totalMaterialsUpkeep;
       } else {
