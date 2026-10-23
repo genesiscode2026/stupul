@@ -456,11 +456,19 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
     if (isDragging) {
       setIsDragging(false);
       const dist = Math.hypot(e.clientX - (dragStart.x + offset.x), e.clientY - (dragStart.y + offset.y));
-      if (dist < 4 && hoveredCoord) {
-        if (activeBuildTool) {
-          onBuildOnCell(hoveredCoord.x, hoveredCoord.y);
-        } else {
-          onSelectCoord(hoveredCoord);
+      if (dist < 4) {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const gridPos = screenToGrid(mouseX, mouseY, zoom, offset);
+          if (gridPos.x >= 0 && gridPos.x < state.gridWidth && gridPos.y >= 0 && gridPos.y < state.gridHeight) {
+            if (activeBuildTool) {
+              onBuildOnCell(gridPos.x, gridPos.y);
+            } else {
+              onSelectCoord(gridPos);
+            }
+          }
         }
       }
     }

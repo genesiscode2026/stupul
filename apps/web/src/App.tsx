@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   GameState, 
   createInitialState, 
@@ -20,8 +20,12 @@ import { TutorialModal } from './components/TutorialModal.js';
 
 const storage = new OfflineStorage();
 
+interface Toast {
+  message: string;
+  kind: 'success' | 'error' | 'info';
+}
+
 export const App: React.FC = () => {
-  // Initialize state from offline storage or initial seed
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = storage.loadLocal();
     return saved || createInitialState(42, 'Avanpostul Văii');
@@ -34,8 +38,8 @@ export const App: React.FC = () => {
     'Avanpostul de Frontieră a fost întemeiat pe malul râului.',
     'Primele 100 de suflete s-au așezat în vale.'
   ]);
+  const [toast, setToast] = useState<Toast | null>(null);
 
-  // Modal open states
   const [isGovernanceOpen, setIsGovernanceOpen] = useState<boolean>(false);
   const [isPuzzleOpen, setIsPuzzleOpen] = useState<boolean>(false);
   const [isCivicTasksOpen, setIsCivicTasksOpen] = useState<boolean>(false);
@@ -49,35 +53,67 @@ export const App: React.FC = () => {
     }
   });
 
-  // Auto-save on state change
+  const gameStateRef = useRef<GameState>(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   useEffect(() => {
     storage.saveLocal(gameState);
   }, [gameState]);
 
-  // Command dispatcher through pure reducer
-  const dispatchCommand = useCallback((cmd: EngineCommand) => {
-    setGameState(prev => {
-      const res = reduce(prev, cmd);
-      if (res.success) {
-        if (res.eventsEmitted.length > 0) {
-          setEventsHistory(h => [...h, ...res.eventsEmitted].slice(-100));
-        }
-        return res.nextState;
-      } else {
-        if (res.error) {
-          alert(res.error);
-        }
-        return prev;
-      }
-    });
+  const showToast = useCallback((message: string, kind: Toast['kind'] = 'info') => {
+    setToast({ message, kind });
   }, []);
 
-  // Tick step
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const mission = useMemo(() => {
+    let houses = 0;
+    let farms = 0;
+    for (let y = 0; y < gameState.gridHeight; y++) {
+      for (let x = 0; x < gameState.gridWidth; x++) {
+        const parcel = gameState.grid[y][x];
+        if (parcel.building === 'house') houses += parcel.level || 1;
+        else if (parcel.building === 'farm') farms += parcel.level || 1;
+      }
+    }
+    const housingCapacity = houses * 25;
+
+    if (gameState.infrastructurePuzzle.solved) {
+      return { title: 'Așezarea crește!', hint: 'Continuă să construiești, să câștigi V-Credits și să cumperi parcele noi.' };
+    }
+    if (housingCapacity >= 125 && farms >= 1) {
+      return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Rezolvă puzzle-ul Apeductului pentru apă potabilă.' };
+    }
+    if (housingCapacity >= 125) {
+      return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Construiește o Fermă pentru a asigura hrana.' };
+    }
+    return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Colectează materiale prin „Muncă" și construiește o Casă.' };
+  }, [gameState]);
+
+  const dispatchCommand = useCallback((cmd: EngineCommand) => {
+    const res = reduce(gameStateRef.current, cmd);
+    if (res.success) {
+      gameStateRef.current = res.nextState;
+      setGameState(res.nextState);
+      if (res.eventsEmitted.length > 0) {
+        setEventsHistory(h => [...h, ...res.eventsEmitted].slice(-100));
+        showToast(res.eventsEmitted[res.eventsEmitted.length - 1], 'success');
+      }
+    } else if (res.error) {
+      showToast(res.error, 'error');
+    }
+  }, [showToast]);
+
   const handleStepTick = useCallback(() => {
     dispatchCommand({ type: 'TICK' });
   }, [dispatchCommand]);
 
-  // Simulation timer loop
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
@@ -86,7 +122,6 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isPlaying, handleStepTick]);
 
-  // Cell click handler with active tool
   const handleBuildOnCell = (x: number, y: number) => {
     if (!activeBuildTool) return;
 
@@ -113,7 +148,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen flex flex-col bg-stone-950 text-stone-100 overflow-hidden">
-      {/* Top Navigation & Status Bar */}
       <TopBar
         state={gameState}
         isPlaying={isPlaying}
@@ -126,6 +160,13 @@ export const App: React.FC = () => {
         onOpenAuditLegal={() => setIsAuditLegalOpen(true)}
         onOpenTutorial={() => setIsTutorialOpen(true)}
       />
+
+      {/* Mission / Objective Banner */}
+      <div className="w-full px-4 py-1.5 bg-gradient-to-r from-amber-950/90 via-stone-900/90 to-amber-950/90 border-b border-amber-800/40 flex items-center gap-2.5 z-10">
+        <span className="text-amber-400 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">🎯 Misiune</span>
+        <span className="font-title text-amber-100 text-sm font-semibold whitespace-nowrap">{mission.title}</span>
+        <span className="text-stone-300 text-xs truncate hidden sm:inline">— {mission.hint}</span>
+      </div>
 
       {/* Main Interactive Map Viewport */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
@@ -206,7 +247,24 @@ export const App: React.FC = () => {
               localStorage.setItem('stupul_tutorial_seen', '1');
             } catch {}
           }}
+          onStart={() => {
+            setIsPlaying(true);
+            showToast('Simularea orașului a pornit. Construiește prima ta Casă!', 'success');
+          }}
         />
+      )}
+
+      {/* Toast feedback */}
+      {toast && (
+        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg border text-sm font-semibold shadow-xl max-w-[90vw] text-center transition-opacity ${
+          toast.kind === 'error'
+            ? 'bg-red-950/95 border-red-600/60 text-red-100'
+            : toast.kind === 'success'
+              ? 'bg-emerald-950/95 border-emerald-600/60 text-emerald-100'
+              : 'bg-stone-900/95 border-amber-600/50 text-amber-100'
+        }`}>
+          {toast.message}
+        </div>
       )}
     </div>
   );

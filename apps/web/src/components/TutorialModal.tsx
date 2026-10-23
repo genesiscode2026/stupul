@@ -15,10 +15,12 @@ import {
 
 interface TutorialModalProps {
   onClose: () => void;
+  onStart?: () => void;
 }
 
 export const TutorialModal: React.FC<TutorialModalProps> = ({
-  onClose
+  onClose,
+  onStart
 }) => {
   const [step, setStep] = useState<number>(0);
 
@@ -196,7 +198,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
               </button>
             ) : (
               <button
-                onClick={onClose}
+                onClick={() => { onStart?.(); onClose(); }}
                 className="frontier-button px-5 py-1.5 rounded font-bold bg-amber-600 text-stone-900 border-amber-300 flex items-center gap-1.5 shadow-lg"
               >
                 <CheckCircle className="w-4 h-4" /> Începe Jocul!
