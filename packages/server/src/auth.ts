@@ -23,13 +23,31 @@ export class AuthManager {
   private sessions = new Map<string, AuthSession>();
   private registeredUsers = new Map<string, UserIdentity>(); // actorId -> UserIdentity
   private userByCredential = new Map<string, string>(); // credentialId -> actorId
+  public readonly allowedOrigins: Set<string>;
 
   constructor(
     public readonly rpId: string = 'localhost',
     public readonly rpName: string = 'STUPUL Civilization',
     private readonly challengeTtlMs: number = 300_000, // 5 min
-    private readonly sessionTtlMs: number = 86_400_000 // 24 hours
-  ) {}
+    private readonly sessionTtlMs: number = 86_400_000, // 24 hours
+    allowedOrigins?: string[]
+  ) {
+    this.allowedOrigins = new Set(allowedOrigins ?? [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5174',
+      'http://localhost:8787',
+      'http://127.0.0.1:8787',
+      'https://stupul.ro',
+      'https://beta.stupul.ro',
+    ]);
+  }
+
+  public isOriginAllowed(origin?: string): boolean {
+    if (!origin) return true; // request-uri locale / server-to-server
+    return this.allowedOrigins.has(origin);
+  }
 
   /**
    * Generează un challenge criptografic pentru înregistrare WebAuthn.
@@ -95,6 +113,10 @@ export class AuthManager {
     chRecord.consumed = true;
     this.challenges.delete(params.challenge);
 
+    if (params.origin && !this.isOriginAllowed(params.origin)) {
+      throw new Error(`Untrusted origin: ${params.origin}`);
+    }
+
     if (this.userByCredential.has(params.credentialId)) {
       throw new Error('Credential ID already registered');
     }
@@ -147,7 +169,12 @@ export class AuthManager {
     actorId: string;
     challenge: string;
     signature: string;
+    origin?: string;
   }): { sessionToken: string; identity: UserIdentity } {
+    if (params.origin && !this.isOriginAllowed(params.origin)) {
+      throw new Error(`Untrusted origin: ${params.origin}`);
+    }
+
     const chRecord = this.challenges.get(params.challenge);
     if (!chRecord) {
       throw new Error('Invalid or unknown challenge');
@@ -181,6 +208,15 @@ export class AuthManager {
   }
 
   /**
+   * Înregistrează direct o identitate (utilizată în teste pentru identități mockate).
+   */
+  registerTestUser(identity: UserIdentity): { sessionToken: string; identity: UserIdentity } {
+    this.registeredUsers.set(identity.actorId, identity);
+    const session = this.createSession(identity);
+    return { sessionToken: session.token, identity };
+  }
+
+  /**
    * Creează o sesiune anonimă de Oaspete (Guest) cu zero-PII.
    */
   createGuestSession(): { sessionToken: string; identity: UserIdentity } {
@@ -207,9 +243,20 @@ export class AuthManager {
     return { valid: true, identity: s.identity };
   }
 
-  revokeSession(token: string): void {
+  revokeSession(token: string): boolean {
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim();
-    this.sessions.delete(cleanToken);
+    return this.sessions.delete(cleanToken);
+  }
+
+  revokeAllSessionsForActor(actorId: string): number {
+    let count = 0;
+    for (const [token, s] of this.sessions.entries()) {
+      if (s.actorId === actorId) {
+        this.sessions.delete(token);
+        count++;
+      }
+    }
+    return count;
   }
 
   private createSession(identity: UserIdentity): AuthSession {

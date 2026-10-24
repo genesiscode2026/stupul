@@ -2,32 +2,14 @@ import { createServer, IncomingMessage, ServerResponse, Server } from 'node:http
 import { EngineCommand } from '@stupul/engine';
 import { Authority } from './authority.js';
 import { AuthManager } from './auth.js';
+import { 
+  RateLimiter, 
+  TokenBucketRateLimiter, 
+  MultiDimensionalRateLimiter 
+} from './rateLimit.js';
 
-export interface RateLimiter {
-  allow(key: string): boolean;
-}
-
-/** Token bucket simplu (în memorie) pentru protecție anti-bot. */
-export class TokenBucketRateLimiter implements RateLimiter {
-  private readonly buckets = new Map<string, { tokens: number; last: number }>();
-  constructor(private readonly capacity = 60, private readonly refillPerSec = 30) {}
-
-  allow(key: string): boolean {
-    const now = Date.now();
-    let b = this.buckets.get(key);
-    if (!b) {
-      b = { tokens: this.capacity, last: now };
-      this.buckets.set(key, b);
-    }
-    const refill = ((now - b.last) / 1000) * this.refillPerSec;
-    b.tokens = Math.min(this.capacity, b.tokens + refill);
-    b.last = now;
-    if (b.tokens < 1) return false;
-    b.tokens -= 1;
-    return true;
-  }
-}
-
+export type { RateLimiter };
+export { TokenBucketRateLimiter, MultiDimensionalRateLimiter };
 
 function setCorsHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -59,9 +41,29 @@ function readBody(req: IncomingMessage): Promise<string> {
 export function startHttpServer(
   authority: Authority,
   port: number,
-  opts?: { rateLimiter?: RateLimiter; authManager?: AuthManager },
+  opts?: { 
+    rateLimiter?: RateLimiter; 
+    multiLimiter?: MultiDimensionalRateLimiter; 
+    authManager?: AuthManager;
+  },
 ): Promise<{ server: Server; port: number }> {
-  const rl = opts?.rateLimiter ?? new TokenBucketRateLimiter();
+  let multiLimiter: MultiDimensionalRateLimiter;
+  if (opts?.multiLimiter) {
+    multiLimiter = opts.multiLimiter;
+  } else if (opts?.rateLimiter instanceof MultiDimensionalRateLimiter) {
+    multiLimiter = opts.rateLimiter;
+  } else if (opts?.rateLimiter) {
+    multiLimiter = new MultiDimensionalRateLimiter({
+      ipCapacity: (opts.rateLimiter as any).capacity ?? 1000,
+      ipRefillPerSec: (opts.rateLimiter as any).refillPerSec ?? 1000,
+      sessionCapacity: (opts.rateLimiter as any).capacity ?? 1000,
+      sessionRefillPerSec: (opts.rateLimiter as any).refillPerSec ?? 1000,
+      identityCapacity: (opts.rateLimiter as any).capacity ?? 1000,
+      identityRefillPerSec: (opts.rateLimiter as any).refillPerSec ?? 1000,
+    });
+  } else {
+    multiLimiter = new MultiDimensionalRateLimiter();
+  }
   const auth = opts?.authManager ?? new AuthManager();
 
   const server = createServer(async (req, res) => {
@@ -208,13 +210,31 @@ export function startHttpServer(
         return;
       }
 
-      // 6. Command Dispatch
+      // 6. Command Dispatch cu Rate Limiting Multi-Dimensional și Identitate Server-Side (Securitate P0)
       if (req.method === 'POST' && url.pathname === '/api/command') {
-        const rateKey = (req.headers['x-actor-id'] as string) || req.socket.remoteAddress || 'unknown';
-        if (!rl.allow(rateKey)) {
-          json(res, 429, { error: 'rate limit exceeded' });
+        const clientIp = multiLimiter.extractClientIp(req);
+        const rawAuth = (req.headers.authorization as string) || (req.headers['x-session-token'] as string) || '';
+        const sessionToken = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7).trim() : rawAuth.trim();
+
+        const verifiedSession = sessionToken ? auth.verifySession(sessionToken) : null;
+        const authenticatedActorId = verifiedSession?.valid && verifiedSession.identity ? verifiedSession.identity.actorId : undefined;
+        const headerActor = req.headers['x-actor-id'] as string;
+
+        // Rate limiting multi-dimensional (IP, Sesiune, Identitate)
+        const rateCheck = multiLimiter.check({
+          ip: clientIp,
+          sessionToken: sessionToken || undefined,
+          actorId: authenticatedActorId || headerActor,
+        });
+
+        if (!rateCheck.allowed) {
+          json(res, 429, { 
+            error: 'rate limit exceeded', 
+            dimension: rateCheck.rejectedDimension 
+          });
           return;
         }
+
         const raw = await readBody(req);
         let payload: { commandId?: string; actorId?: string; command?: EngineCommand };
         try {
@@ -223,6 +243,7 @@ export function startHttpServer(
           json(res, 400, { error: 'invalid JSON' });
           return;
         }
+
         if (!payload.commandId || typeof payload.commandId !== 'string') {
           json(res, 400, { error: 'commandId required' });
           return;
@@ -231,7 +252,86 @@ export function startHttpServer(
           json(res, 400, { error: 'command required' });
           return;
         }
-        const result = authority.applyCommand(payload.command, payload.commandId, payload.actorId ?? 'anonymous');
+
+        // Anti-Spoofing & Derivare Identitate Server-Side:
+        if (sessionToken) {
+          if (!verifiedSession?.valid || !verifiedSession.identity) {
+            json(res, 401, { error: `Unauthorized: ${verifiedSession?.error || 'invalid session'}` });
+            return;
+          }
+          const expectedActor = verifiedSession.identity.actorId;
+          // Respinge încercarea de falsificare / uzurpare a identității
+          if (headerActor && headerActor !== expectedActor) {
+            json(res, 403, { 
+              error: 'Forbidden: header actor mismatch (cannot impersonate another actor)',
+              authenticatedActor: expectedActor,
+              attemptedActor: headerActor 
+            });
+            return;
+          }
+          if (payload.actorId && payload.actorId !== expectedActor) {
+            json(res, 403, { 
+              error: 'Forbidden: actor mismatch (cannot impersonate another actor)',
+              authenticatedActor: expectedActor,
+              attemptedActor: payload.actorId 
+            });
+            return;
+          }
+          const commandHasActor = 'actorId' in payload.command;
+          const attemptedCmdActor = commandHasActor ? (payload.command as { actorId: string }).actorId : undefined;
+          if (attemptedCmdActor && attemptedCmdActor !== expectedActor) {
+            json(res, 403, { 
+              error: 'Forbidden: command actor mismatch (cannot act on behalf of another actor)',
+              authenticatedActor: expectedActor,
+              attemptedActor: attemptedCmdActor 
+            });
+            return;
+          }
+          payload.actorId = expectedActor;
+          if (commandHasActor) {
+            (payload.command as { actorId: string }).actorId = expectedActor;
+          }
+        }
+
+        const cmdHasActor = 'actorId' in payload.command;
+        const currentCmdActor = cmdHasActor ? (payload.command as { actorId: string }).actorId : undefined;
+        const effectiveActor = payload.actorId || currentCmdActor || authenticatedActorId || headerActor || 'anonymous';
+        if (cmdHasActor) {
+          (payload.command as { actorId: string }).actorId = effectiveActor;
+        }
+
+        // Autorizare Resursă (Protecție Proprietăți Parcele):
+        const currentGrid = authority.getState().grid;
+        if (payload.command.type === 'UPGRADE_BUILDING' || payload.command.type === 'DEMOLISH_BUILDING') {
+          const { x, y } = payload.command;
+          if (x >= 0 && x < currentGrid[0].length && y >= 0 && y < currentGrid.length) {
+            const parcel = currentGrid[y][x];
+            if (parcel.ownerAccountId && parcel.ownerAccountId !== effectiveActor && parcel.ownerAccountId !== 'public_town_trust') {
+              json(res, 403, { 
+                error: `Forbidden: parcel (${x}, ${y}) is owned by '${parcel.ownerAccountId}', not '${effectiveActor}'` 
+              });
+              return;
+            }
+          }
+        }
+
+        // Autorizare Guvernanță (Doar cetățeni validați pot modifica politicile):
+        if (payload.command.type === 'SET_POLICY') {
+          const isGuestOrAnon =
+            effectiveActor.startsWith('guest_') ||
+            effectiveActor.startsWith('oaspete_') ||
+            effectiveActor === 'anonymous' ||
+            (verifiedSession?.identity as any)?.mode === 'guest' ||
+            (verifiedSession?.identity as any)?.role === 'guest';
+          if (isGuestOrAnon) {
+            json(res, 403, { 
+              error: 'Forbidden: guest and anonymous accounts cannot directly modify city policies' 
+            });
+            return;
+          }
+        }
+
+        const result = authority.applyCommand(payload.command, payload.commandId, effectiveActor);
         if (result.applied) {
           json(res, 200, { applied: true, version: result.version, state: result.state, events: result.events });
         } else if (result.idempotentReplay) {
