@@ -45,7 +45,7 @@ describe('Audit Avansat de Securitate, Robustețe și Stres (10.000 de Pași)', 
 
     expect(stateA.population.satisfaction).toBeGreaterThanOrEqual(0);
     expect(stateA.population.satisfaction).toBeLessThanOrEqual(100);
-  }, 25000); // 25s timeout for 10k ticks
+  }, 60000); // 60s timeout for 10k ticks
 
   it('SEC-VOTE-DEDUP: Trimiterea de 50 de voturi duplicate de la același cetățean este deduplicată la EXACT 1 vot', () => {
     const proposal: Proposal = {

@@ -1,10 +1,10 @@
 import { createRequire } from 'node:module';
+import type { DatabaseSync } from 'node:sqlite';
 
 // node:sqlite este un built-in introdus după lansarea Vite 5, deci Vite nu-l
 // rezolvă static; îl încărcăm la runtime prin createRequire (Node 22.5+/24).
 const nodeRequire = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { DatabaseSync } = nodeRequire('node:sqlite') as typeof import('node:sqlite');
+const { DatabaseSync: DatabaseSyncImpl } = nodeRequire('node:sqlite') as typeof import('node:sqlite');
 
 export interface EventRecord {
   seq: number;
@@ -24,7 +24,7 @@ export class StateDB {
   private readonly db: DatabaseSync;
 
   constructor(filePath: string) {
-    this.db = new DatabaseSync(filePath);
+    this.db = new DatabaseSyncImpl(filePath);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
