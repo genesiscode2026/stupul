@@ -266,3 +266,122 @@ export class CloudflareD1StorageAdapter implements StorageAdapter {
   }
 }
 
+/**
+ * Interfață compatibilă cu Cloudflare Workers Durable Objects SQLite Storage API (ctx.storage.sql).
+ */
+export interface DurableObjectSqlStorageLike {
+  exec(query: string, ...bindings: unknown[]): {
+    toArray(): unknown[];
+    one(): unknown;
+    raw(): unknown[];
+    [Symbol.iterator](): Iterator<unknown>;
+  };
+}
+
+/**
+ * Adapter pentru Cloudflare Durable Objects cu SQLite sincron (ctx.storage.sql).
+ * Oferă persistență atomică la nivel de instanță DO pentru server autoritativ global.
+ */
+export class DurableObjectSqlStorageAdapter implements StorageAdapter {
+  private inMemoryCache: MemoryStorageAdapter;
+
+  constructor(public readonly sql?: DurableObjectSqlStorageLike) {
+    this.inMemoryCache = new MemoryStorageAdapter();
+    if (this.sql) {
+      this.initSchema();
+      this.loadInitialState();
+    }
+  }
+
+  private initSchema(): void {
+    if (!this.sql) return;
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        json TEXT NOT NULL,
+        version INTEGER NOT NULL
+      );
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS commands (
+        command_id TEXT PRIMARY KEY,
+        result TEXT NOT NULL,
+        applied_at INTEGER NOT NULL
+      );
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        state_hash TEXT NOT NULL,
+        at INTEGER NOT NULL
+      );
+    `);
+  }
+
+  private loadInitialState(): void {
+    if (!this.sql) return;
+    try {
+      const cursor = this.sql.exec('SELECT json, version FROM state WHERE id = 1');
+      const row = cursor.one() as { json: string; version: number } | undefined;
+      if (row) {
+        this.inMemoryCache.saveState(row.json, row.version);
+      }
+    } catch {
+      // Ignoră dacă tabela e proaspăt creată și goală
+    }
+  }
+
+  loadState(): { json: string; version: number } | null {
+    return this.inMemoryCache.loadState();
+  }
+
+  saveState(json: string, version: number): void {
+    this.inMemoryCache.saveState(json, version);
+    if (this.sql) {
+      this.sql.exec('INSERT OR REPLACE INTO state (id, json, version) VALUES (1, ?, ?)', json, version);
+    }
+  }
+
+  hasCommand(commandId: string): boolean {
+    return this.inMemoryCache.hasCommand(commandId);
+  }
+
+  saveCommand(commandId: string, result: string, appliedAt: number): void {
+    this.inMemoryCache.saveCommand(commandId, result, appliedAt);
+    if (this.sql) {
+      this.sql.exec('INSERT INTO commands (command_id, result, applied_at) VALUES (?, ?, ?)', commandId, result, appliedAt);
+    }
+  }
+
+  appendEvent(tick: number, type: string, actor: string, payload: string, stateHash: string, at: number): void {
+    this.inMemoryCache.appendEvent(tick, type, actor, payload, stateHash, at);
+    if (this.sql) {
+      this.sql.exec(
+        'INSERT INTO events (tick, type, actor, payload, state_hash, at) VALUES (?, ?, ?, ?, ?, ?)',
+        tick,
+        type,
+        actor,
+        payload,
+        stateHash,
+        at
+      );
+    }
+  }
+
+  getEventsSince(seq: number): EventRecord[] {
+    return this.inMemoryCache.getEventsSince(seq);
+  }
+
+  transaction<T>(fn: () => T): T {
+    return this.inMemoryCache.transaction(fn);
+  }
+
+  close(): void {
+    this.inMemoryCache.close();
+  }
+}
+

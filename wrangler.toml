@@ -1,0 +1,20 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "stupul-civilization"
+main = "packages/server/src/worker.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Servire frontend Vite (dist) prin Workers Static Assets (Gratuit pe Cloudflare Free Tier)
+[assets]
+directory = "./apps/web/dist"
+binding = "ASSETS"
+
+# Server autoritativ global de stare în memorie + SQLite sincron pe edge
+[durable_objects]
+bindings = [
+  { name = "CITY_STATE_DO", class_name = "CityStateDO" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CityStateDO"]
