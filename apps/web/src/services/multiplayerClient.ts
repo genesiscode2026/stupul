@@ -22,27 +22,41 @@ class MultiplayerClient {
   constructor() {
     // Generăm un actorId per sesiune de browser (distinct între ferestre/profiluri diferite)
     let id: string | null = null;
+    let token: string | null = null;
     try {
-      id = sessionStorage.getItem('stupul_browser_actor_id');
+      token = localStorage.getItem('stupul_session_token') || sessionStorage.getItem('stupul_session_token');
+      id = localStorage.getItem('stupul_browser_actor_id') || sessionStorage.getItem('stupul_browser_actor_id');
       if (!id) {
-        id = 'cetatean_local';
+        const randSeed = Math.floor(Math.random() * 9000 + 1000);
+        id = `oaspete_${randSeed}`;
       }
-      this.sessionToken = sessionStorage.getItem('stupul_session_token');
     } catch {
-      id = 'cetatean_local';
+      const randSeed = Math.floor(Math.random() * 9000 + 1000);
+      id = `oaspete_${randSeed}`;
     }
+    this.sessionToken = token;
     this.actorId = id;
   }
 
-
   public getActorId(): string {
     return this.actorId;
+  }
+
+  public isGuest(): boolean {
+    return this.actorId.startsWith('oaspete_') || this.actorId.startsWith('guest_') || !this.sessionToken;
+  }
+
+  public isCitizen(): boolean {
+    return !this.isGuest();
   }
 
   public setActorId(id: string): void {
     this.actorId = id;
     try {
       sessionStorage.setItem('stupul_browser_actor_id', id);
+      if (this.isCitizen()) {
+        localStorage.setItem('stupul_browser_actor_id', id);
+      }
     } catch {
       // Ignoră erorile storage
     }
@@ -53,11 +67,41 @@ class MultiplayerClient {
     try {
       if (token) {
         sessionStorage.setItem('stupul_session_token', token);
+        localStorage.setItem('stupul_session_token', token);
       } else {
         sessionStorage.removeItem('stupul_session_token');
+        localStorage.removeItem('stupul_session_token');
       }
     } catch {
       // Ignoră erorile storage
+    }
+  }
+
+  /**
+   * Înregistrează instantaneu un cont civic de Cetățean gratuit cu Zero-PII.
+   */
+  public async becomeCitizen(username?: string): Promise<{ success: boolean; actorId: string; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/citizen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sessionToken && data.identity) {
+          this.setSessionToken(data.sessionToken);
+          this.setActorId(data.identity.actorId);
+          return { success: true, actorId: data.identity.actorId };
+        }
+      }
+      return { success: false, actorId: this.actorId, error: 'Înregistrarea cetățeanului a eșuat pe server' };
+    } catch (err: any) {
+      // În mod complet offline / demo static, permite upgrade local
+      const localCitizenId = `cetatean_${Math.floor(Math.random() * 90000 + 10000)}`;
+      this.setSessionToken(`local_offline_token_${Date.now()}`);
+      this.setActorId(localCitizenId);
+      return { success: true, actorId: localCitizenId };
     }
   }
 
@@ -196,6 +240,16 @@ class MultiplayerClient {
           success: true,
           nextState: body.state,
           events: body.events ?? [],
+        };
+      }
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({ error: 'Acțiune interzisă (403)' }));
+        return {
+          success: false,
+          nextState: currentState,
+          error: body.error || 'Conturile de oaspete nu pot revendica parcele sau construi în orașul comun. Înregistrează-te gratuit ca Cetățean!',
+          events: [],
         };
       }
 

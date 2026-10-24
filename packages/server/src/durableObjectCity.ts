@@ -232,6 +232,13 @@ export class CityStateDO {
         }
       }
 
+      if (request.method === 'POST' && (url.pathname.endsWith('/api/auth/citizen') || url.pathname.endsWith('/api/auth/register-citizen'))) {
+        let body: any = {};
+        try { body = await request.json(); } catch {}
+        const result = this.auth.registerCitizen(body?.username);
+        return json(200, result);
+      }
+
       if (request.method === 'POST' && (url.pathname.endsWith('/api/auth/guest') || url.pathname.endsWith('/api/auth/guest-session'))) {
         try { await request.text(); } catch {}
         const result = this.auth.createGuestSession();
@@ -342,9 +349,30 @@ export class CityStateDO {
           (payload.command as { actorId: string }).actorId = effectiveActor;
         }
 
+        const isGuestOrAnon =
+          effectiveActor.startsWith('guest_') ||
+          effectiveActor.startsWith('oaspete_') ||
+          effectiveActor === 'anonymous' ||
+          (verifiedSession?.identity as any)?.mode === 'guest' ||
+          (verifiedSession?.identity as any)?.role === 'guest';
+
+        // P2 Invariant: Oaspeții/Anonimii nu pot revendica parcele și nu pot construi clădiri persistente în orașul comun
+        if (payload.command.type === 'CLAIM_PARCEL' || payload.command.type === 'CONSTRUCT_BUILDING') {
+          if (isGuestOrAnon) {
+            return json(403, {
+              error: 'Forbidden: conturile de oaspete nu pot revendica parcele sau construi clădiri persistente în orașul comun. Înregistrează-te gratuit ca Cetățean.',
+            });
+          }
+        }
+
         // Autorizare Resursă (Protecție Proprietăți Parcele):
         const currentGrid = this.authority.getState().grid;
         if (payload.command.type === 'UPGRADE_BUILDING' || payload.command.type === 'DEMOLISH_BUILDING') {
+          if (isGuestOrAnon) {
+            return json(403, {
+              error: 'Forbidden: conturile de oaspete nu pot modifica clădiri în orașul comun. Înregistrează-te gratuit ca Cetățean.',
+            });
+          }
           const { x, y } = payload.command;
           if (x >= 0 && x < currentGrid[0].length && y >= 0 && y < currentGrid.length) {
             const parcel = currentGrid[y][x];
@@ -358,12 +386,6 @@ export class CityStateDO {
 
         // Autorizare Guvernanță (Doar cetățeni validați pot modifica politicile):
         if (payload.command.type === 'SET_POLICY') {
-          const isGuestOrAnon =
-            effectiveActor.startsWith('guest_') ||
-            effectiveActor.startsWith('oaspete_') ||
-            effectiveActor === 'anonymous' ||
-            (verifiedSession?.identity as any)?.mode === 'guest' ||
-            (verifiedSession?.identity as any)?.role === 'guest';
           if (isGuestOrAnon) {
             return json(403, {
               error: 'Forbidden: guest and anonymous accounts cannot directly modify city policies',

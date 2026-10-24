@@ -123,7 +123,18 @@ export const App: React.FC = () => {
     return { title: tData.mission.helpTitle, hint: tData.mission.houseHint };
   }, [gameState, tData]);
 
-  const actorId = useMemo(() => multiplayerClient.getActorId(), []);
+  const [currentActorId, setCurrentActorId] = useState<string>(() => multiplayerClient.getActorId());
+  const isCitizen = !multiplayerClient.isGuest();
+
+  const handleBecomeCitizen = useCallback(async () => {
+    const res = await multiplayerClient.becomeCitizen();
+    if (res.success) {
+      setCurrentActorId(res.actorId);
+      showToast(`Identitate civică activată: ${res.actorId}. Poți construi și revendica parcele în Orașul Comun!`, 'success');
+    } else {
+      showToast(res.error || 'Înregistrarea cetățeanului a eșuat.', 'error');
+    }
+  }, [showToast]);
 
   const dispatchCommand = useCallback(async (cmd: EngineCommand) => {
     const res = await multiplayerClient.dispatchCommand(cmd, gameStateRef.current);
@@ -155,18 +166,18 @@ export const App: React.FC = () => {
     if (!activeBuildTool) return;
 
     if (activeBuildTool === 'claim') {
-      dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId });
+      dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId: currentActorId });
     } else if (activeBuildTool === 'upgrade') {
-      dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId });
+      dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId: currentActorId });
     } else if (activeBuildTool === 'demolish') {
-      dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId });
+      dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId: currentActorId });
     } else {
       dispatchCommand({
         type: 'CONSTRUCT_BUILDING',
         x,
         y,
         buildingType: activeBuildTool as BuildingType,
-        actorId,
+        actorId: currentActorId,
       });
     }
   };
@@ -204,7 +215,9 @@ export const App: React.FC = () => {
         onOpenWorkshop={() => setIsWorkshopOpen(true)}
         onShareCity={handleShareCity}
         isMultiplayerConnected={isMultiplayerConnected}
-        actorId={actorId}
+        actorId={currentActorId}
+        isCitizen={isCitizen}
+        onBecomeCitizen={handleBecomeCitizen}
       />
 
       {/* Mission / Objective Banner */}
@@ -228,10 +241,10 @@ export const App: React.FC = () => {
         <ParcelInspector
           parcel={selectedParcel}
           onClose={() => setSelectedCoord(null)}
-          onClaim={(x, y) => dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId })}
-          onBuild={(x, y, type) => dispatchCommand({ type: 'CONSTRUCT_BUILDING', x, y, buildingType: type, actorId })}
-          onUpgrade={(x, y) => dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId })}
-          onDemolish={(x, y) => dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId })}
+          onClaim={(x, y) => dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId: currentActorId })}
+          onBuild={(x, y, type) => dispatchCommand({ type: 'CONSTRUCT_BUILDING', x, y, buildingType: type, actorId: currentActorId })}
+          onUpgrade={(x, y) => dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId: currentActorId })}
+          onDemolish={(x, y) => dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId: currentActorId })}
           availableMaterials={gameState.resources.materials}
           availableCredits={gameState.resources.virtualCredits}
         />
@@ -250,7 +263,7 @@ export const App: React.FC = () => {
         <GovernanceModal
           state={gameState}
           onClose={() => setIsGovernanceOpen(false)}
-          onUpdatePolicy={(key, val) => dispatchCommand({ type: 'SET_POLICY', policyKey: key, value: val, actorId })}
+          onUpdatePolicy={(key, val) => dispatchCommand({ type: 'SET_POLICY', policyKey: key, value: val, actorId: currentActorId })}
         />
       )}
 
@@ -258,14 +271,14 @@ export const App: React.FC = () => {
         <PuzzleModal
           state={gameState}
           onClose={() => setIsPuzzleOpen(false)}
-          onRotateTile={(x, y) => dispatchCommand({ type: 'ROTATE_PUZZLE_TILE', x, y, actorId })}
+          onRotateTile={(x, y) => dispatchCommand({ type: 'ROTATE_PUZZLE_TILE', x, y, actorId: currentActorId })}
         />
       )}
 
       {isCivicTasksOpen && (
         <CivicTasksModal
           onClose={() => setIsCivicTasksOpen(false)}
-          onPerformTask={kind => dispatchCommand({ type: 'WORK_CIVIC_TASK', actorId, taskKind: kind })}
+          onPerformTask={kind => dispatchCommand({ type: 'WORK_CIVIC_TASK', actorId: currentActorId, taskKind: kind })}
         />
       )}
 

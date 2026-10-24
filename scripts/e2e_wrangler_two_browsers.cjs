@@ -132,9 +132,9 @@ async function run() {
     const pageA = await browserA.newPage();
     const pageB = await browserB.newPage();
 
-    // 3. Autentificare securizată pentru User A și User B
-    console.log('[3/6] Obținere sesiuni autentificate pe Durable Object...');
-    const authA = await postJson('/api/auth/guest', {});
+    // 3. Autentificare: User A devine Cetățean, User B începe ca Oaspete (Demo)
+    console.log('[3/6] Obținere identități: User A = Cetățean, User B = Oaspete...');
+    const authA = await postJson('/api/auth/citizen', { username: 'Cetățean Alpha' });
     const authB = await postJson('/api/auth/guest', {});
 
     const tokenA = authA.data?.sessionToken;
@@ -142,7 +142,7 @@ async function run() {
     const tokenB = authB.data?.sessionToken;
     const actorB = authB.data?.identity?.actorId;
 
-    record('Sesiuni independente emise de Durable Object', tokenA && tokenB && actorA !== actorB, `UserA=${actorA}, UserB=${actorB}`);
+    record('Sesiuni independente emise: User A = Cetățean, User B = Oaspete', tokenA && tokenB && actorA !== actorB, `UserA=${actorA}, UserB=${actorB}`);
 
     // Setăm token-urile în pagini și navigăm la interfața grafică pe port 8788
     await pageA.evaluateOnNewDocument((token, actor) => {
@@ -161,8 +161,8 @@ async function run() {
     await pageB.goto(WRANGLER_URL, { waitUntil: 'domcontentloaded' });
     await delay(1000);
 
-    // 4. User A construiește o casă pe parcela (4, 4)
-    console.log('[4/6] User A construiește o casă pe parcela (4, 4)...');
+    // 4. User A (Cetățean) construiește o casă pe parcela (4, 4)
+    console.log('[4/6] User A (Cetățean) construiește o casă pe parcela (4, 4)...');
     const cmdBuildA = await postJson('/api/command', {
       commandId: `cmd_build_house_4_4_${Date.now()}`,
       command: {
@@ -179,8 +179,8 @@ async function run() {
     // Așteptăm sincronizarea
     await delay(1200);
 
-    // 5. User B verifică starea și vede casa construită de User A
-    console.log('[5/6] User B verifică starea și observă casa construită de User A...');
+    // 5. User B (Oaspete) verifică starea și vede casa construită de User A
+    console.log('[5/6] User B (Oaspete) verifică starea și observă casa construită de User A...');
     const stateOnB = await pageB.evaluate((url) => {
       return fetch(`${url}/api/state`)
         .then(r => r.json())
@@ -193,20 +193,42 @@ async function run() {
       `Parcela (4,4): building='${stateOnB?.building}', owner='${stateOnB?.ownerAccountId}'`
     );
 
-    // 6. User B încearcă revendicarea sau construirea duplicată pe (4, 4) -> Serverul respinge cu 409
-    console.log('[6/6] User B încearcă acțiune duplicată/conflictuală pe (4, 4)...');
+    // 5b. P2 Test: User B (Oaspete) încearcă să construiască fără cont de cetățean -> HTTP 403 Forbidden
+    const cmdGuestBuild = await postJson('/api/command', {
+      commandId: `cmd_guest_attempt_${Date.now()}`,
+      command: {
+        type: 'CONSTRUCT_BUILDING',
+        x: 5,
+        y: 5,
+        buildingType: 'farm',
+        actorId: actorB,
+      },
+    }, tokenB);
+
+    record(
+      'P2 Securitate: Tentativa de construire din cont de Oaspete este respinsă cu HTTP 403 Forbidden',
+      cmdGuestBuild.status === 403,
+      `Status=${cmdGuestBuild.status}, Mesaj=${cmdGuestBuild.data?.error}`
+    );
+
+    // 6. User B devine Cetățean și încearcă acțiune duplicată pe (4, 4) -> Serverul respinge cu 409
+    console.log('[6/6] User B devine Cetățean și încearcă revendicare pe parcela ocupată (4, 4)...');
+    const authBCitizen = await postJson('/api/auth/citizen', { username: 'Cetățean Beta' });
+    const tokenBCitizen = authBCitizen.data?.sessionToken;
+    const actorBCitizen = authBCitizen.data?.identity?.actorId;
+
     const cmdConflictB = await postJson('/api/command', {
       commandId: `cmd_conflict_4_4_${Date.now()}`,
       command: {
         type: 'CLAIM_PARCEL',
         x: 4,
         y: 4,
-        actorId: actorB,
+        actorId: actorBCitizen,
       },
-    }, tokenB);
+    }, tokenBCitizen);
 
     record(
-      'Serverul autoritativ respinge acțiunea duplicată cu HTTP 409 Conflict',
+      'Serverul autoritativ respinge acțiunea duplicată pe parcelă ocupată cu HTTP 409 Conflict',
       cmdConflictB.status === 409 && cmdConflictB.data.applied === false,
       `Status=${cmdConflictB.status}, Mesaj=${cmdConflictB.data?.error}`
     );

@@ -155,7 +155,7 @@ describe('STUPUL GENESIS v3.4 — Multiplayer & Cloud Concurrency Benchmark', ()
     const { server, port } = await startHttpServer(authority, 0, { multiLimiter, authManager });
     serversToClean.push(server);
 
-    const clients = Array.from({ length: 100 }, () => authManager.createGuestSession());
+    const clients = Array.from({ length: 100 }, (_, idx) => authManager.registerCitizen(`cetatean_bench_${idx}`));
     const TARGET_PARCEL = { x: 2, y: 2 };
 
     // Toți cei 100 încearcă să revendice EXACT aceeași parcelă neocupată (2, 2) simultan

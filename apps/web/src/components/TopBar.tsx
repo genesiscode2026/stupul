@@ -35,6 +35,8 @@ interface TopBarProps {
   onShareCity?: () => void;
   isMultiplayerConnected?: boolean;
   actorId?: string;
+  isCitizen?: boolean;
+  onBecomeCitizen?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -52,6 +54,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onShareCity,
   isMultiplayerConnected = false,
   actorId,
+  isCitizen = false,
+  onBecomeCitizen,
 }) => {
   const { lang, toggleLang, tData } = useLanguage();
 
@@ -77,16 +81,28 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span className={`w-2 h-2 rounded-full ${isMultiplayerConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               {isMultiplayerConnected ? 'Multiplayer Live' : 'Mod Solo / Offline'}
             </span>
-            {actorId && (
-              <>
-                <span>•</span>
-                <span className="text-stone-400 truncate max-w-[120px]" title={actorId}>ID: {actorId.slice(0, 12)}</span>
-              </>
-            )}
             <span>•</span>
-            <span className="text-emerald-400 flex items-center gap-0.5">
-              <ShieldCheck className="w-3 h-3 inline" /> {tData.common.anonymous}
-            </span>
+            {isCitizen ? (
+              <span className="text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/40" title={actorId}>
+                <ShieldCheck className="w-3 h-3 text-emerald-400 inline" />
+                <span>Cetățean ({actorId ? actorId.slice(0, 14) : 'activ'})</span>
+              </span>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-300 font-medium bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-800/40" title={actorId}>
+                  Mod Oaspete (Demo)
+                </span>
+                {onBecomeCitizen && (
+                  <button
+                    onClick={onBecomeCitizen}
+                    className="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] shadow transition"
+                    title="Activează identitatea persistentă de Cetățean pentru a construi în orașul comun (Gratuit, Zero PII)"
+                  >
+                    Devino Cetățean
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

@@ -356,4 +356,108 @@ describe('GENESIS v3.3 — Audit de Securitate Identitate, Autentificare & Rate 
     }).toThrow('Invalid or unknown challenge');
   });
 
+  // SCENARIUL 12: P2 — Conturile de Oaspete (Guest) sunt respinse cu 403 la CLAIM_PARCEL sau CONSTRUCT_BUILDING
+  it('SEC-12: Conturile de Oaspete (Guest) sunt respinse cu 403 la revendicare parcele sau construcții persistente', async () => {
+    const authority = new Authority(new StateDB(':memory:'));
+    const authManager = new AuthManager('localhost', 'STUPUL Civilization');
+    const { sessionToken, identity } = authManager.createGuestSession();
+
+    const { server, port } = await startHttpServer(authority, 0, { authManager });
+    activeServers.push(server);
+
+    // Tentativă revendicare ca oaspete
+    const resClaim = await fetch(`http://127.0.0.1:${port}/api/command`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        commandId: 'cmd-guest-claim-1',
+        actorId: identity.actorId,
+        command: { type: 'CLAIM_PARCEL', x: 2, y: 2, actorId: identity.actorId },
+      }),
+    });
+
+    expect(resClaim.status).toBe(403);
+    const claimData = await resClaim.json();
+    expect(claimData.error).toContain('Forbidden');
+    expect(claimData.error).toContain('oaspete');
+
+    // Tentativă construire ca oaspete
+    const resBuild = await fetch(`http://127.0.0.1:${port}/api/command`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        commandId: 'cmd-guest-build-1',
+        actorId: identity.actorId,
+        command: { type: 'CONSTRUCT_BUILDING', x: 2, y: 2, buildingType: 'house', actorId: identity.actorId },
+      }),
+    });
+
+    expect(resBuild.status).toBe(403);
+  });
+
+  // SCENARIUL 13: P2 — Înregistrare Cetățean instantanee Zero-PII permite revendicare și construire autorizată
+  it('SEC-13: Înregistrare Cetățean instantanee Zero-PII permite revendicare și construire cu sesiune persistentă', async () => {
+    const authority = new Authority(new StateDB(':memory:'));
+    const authManager = new AuthManager('localhost', 'STUPUL Civilization');
+
+    const { server, port } = await startHttpServer(authority, 0, { authManager });
+    activeServers.push(server);
+
+    // Înregistrare cetățean prin endpointul /api/auth/citizen
+    const regRes = await fetch(`http://127.0.0.1:${port}/api/auth/citizen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'Cetățean Alpha' }),
+    });
+    expect(regRes.status).toBe(200);
+    const regData = await regRes.json();
+    expect(regData.sessionToken).toBeDefined();
+    expect(regData.identity.actorId).toMatch(/^cetatean_/);
+    expect(regData.identity.mode).toBe('registered_citizen');
+
+    // Revendicare parcelă ca cetățean autorizat
+    const resClaim = await fetch(`http://127.0.0.1:${port}/api/command`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${regData.sessionToken}`,
+      },
+      body: JSON.stringify({
+        commandId: 'cmd-citizen-claim-1',
+        actorId: regData.identity.actorId,
+        command: { type: 'CLAIM_PARCEL', x: 2, y: 2, actorId: regData.identity.actorId },
+      }),
+    });
+
+    expect(resClaim.status).toBe(200);
+    const claimResult = await resClaim.json();
+    expect(claimResult.applied).toBe(true);
+
+    // Construire casă pe parcela revendicată
+    const resBuild = await fetch(`http://127.0.0.1:${port}/api/command`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${regData.sessionToken}`,
+      },
+      body: JSON.stringify({
+        commandId: 'cmd-citizen-build-1',
+        actorId: regData.identity.actorId,
+        command: { type: 'CONSTRUCT_BUILDING', x: 2, y: 2, buildingType: 'house', actorId: regData.identity.actorId },
+      }),
+    });
+
+    expect(resBuild.status).toBe(200);
+    const buildResult = await resBuild.json();
+    expect(buildResult.applied).toBe(true);
+    expect(buildResult.state.grid[2][2].building).toBe('house');
+    expect(buildResult.state.grid[2][2].ownerAccountId).toBe(regData.identity.actorId);
+  });
+
 });

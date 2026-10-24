@@ -226,6 +226,26 @@ export class AuthManager {
   }
 
   /**
+   * Înregistrează un Cetățean cu identitate civică persistentă și zero-PII.
+   */
+  registerCitizen(username?: string): { sessionToken: string; identity: UserIdentity } {
+    const seed = randomBytes(4).toString('hex');
+    const cleanUsername = username?.trim() || `Cetățean-${seed.slice(0, 4)}`;
+    const actorId = `cetatean_${seed}`;
+    const identity: UserIdentity = {
+      actorId,
+      username: cleanUsername,
+      mode: 'registered_citizen',
+      civicScore: 10,
+      registeredAtMs: Date.now(),
+      lastActiveMs: Date.now(),
+    };
+    this.registeredUsers.set(actorId, identity);
+    const session = this.createSession(identity);
+    return { sessionToken: session.token, identity };
+  }
+
+  /**
    * Creează o sesiune anonimă de Oaspete (Guest) cu zero-PII.
    */
   createGuestSession(): { sessionToken: string; identity: UserIdentity } {
