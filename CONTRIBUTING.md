@@ -113,3 +113,11 @@ By making a contribution to this project, I certify that:
 - Toate textele afișate în interfața de utilizator trebuie declarate simultan în fișierul `apps/web/src/i18n/translations.ts` (atât cheia în limba Română cât și în limba Engleză).
 - Nu includeți șiruri de caractere hardcodate în componentele React.
 - Denumirile identificatorilor tehnici, fișierelor și variabilelor rămân în limba engleză (ex: `actorId`, `gameState`, `calculateRoyalties`).
+
+---
+
+## 6. Guvernanță Comunitară & Licențiere Comercială
+
+- **Administrarea Comunitară**: Pentru regulile constituționale de alegere a Consiliului Comunitar, procesul de decizie RFC și administrarea descentralizată fără chei unice, consultați [Acordul de Administrare Comunitară](file:///Users/severmarcus/Documents/STUPUL/docs/COMMUNITY_OPERATING_AGREEMENT.md).
+- **Operatori Comerciali & Succesiune**: Orice entitate care monetizează jocul sau preia exploatarea comercială aderă automat la obligațiile de decontare a redevenței de 5% (500 bps) pe BASE USDC prin [Actul de Aderare (Deed of Adherence)](file:///Users/severmarcus/Documents/STUPUL/docs/DEED_OF_ADHERENCE.md).
+
