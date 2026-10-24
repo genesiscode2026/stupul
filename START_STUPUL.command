@@ -27,6 +27,9 @@ mkdir -p "$RUNTIME_DIR"
 PID_FILE="$RUNTIME_DIR/stupul.pid"
 PORT_FILE="$RUNTIME_DIR/stupul.port"
 LOG_FILE="$RUNTIME_DIR/stupul.log"
+BACKEND_PID_FILE="$RUNTIME_DIR/stupul_backend.pid"
+BACKEND_LOG_FILE="$RUNTIME_DIR/stupul_backend.log"
+
 
 say()  { echo "[INFO] $*"; }
 warn() { echo "[AVERTISMENT] $*"; }
@@ -123,8 +126,25 @@ if [ -z "$TARGET_PORT" ]; then
 fi
 say "Port selectat: 127.0.0.1:$TARGET_PORT"
 
+# 4.5. Pornește serverul autoritativ multiplayer pe 8787 dacă nu e deja activ
+if ! curl -s http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
+  say "Pornesc serverul autoritativ multiplayer pe 127.0.0.1:8787..."
+  (
+    cd "$PROJECT_DIR" || exit 1
+    exec nohup node "$PROJECT_DIR/packages/server/dist/index.js" \
+      < /dev/null >> "$BACKEND_LOG_FILE" 2>&1
+  ) &
+  BACKEND_PID=$!
+  disown "$BACKEND_PID" 2>/dev/null || true
+  echo "$BACKEND_PID" > "$BACKEND_PID_FILE"
+  say "Server autoritativ lansat (PID: $BACKEND_PID)."
+else
+  say "Server autoritativ deja activ pe 127.0.0.1:8787."
+fi
+
 # 5. Pornește serverul Vite legat exclusiv la 127.0.0.1
 say "Pornesc serverul STUPUL în fundal..."
+
 (
   cd "$PROJECT_DIR/apps/web" || exit 1
   exec nohup node "$PROJECT_DIR/node_modules/vite/bin/vite.js" \

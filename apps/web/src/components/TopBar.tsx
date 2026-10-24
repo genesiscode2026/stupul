@@ -33,6 +33,8 @@ interface TopBarProps {
   onOpenTutorial: () => void;
   onOpenWorkshop?: () => void;
   onShareCity?: () => void;
+  isMultiplayerConnected?: boolean;
+  actorId?: string;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -47,7 +49,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenAuditLegal,
   onOpenTutorial,
   onOpenWorkshop,
-  onShareCity
+  onShareCity,
+  isMultiplayerConnected = false,
+  actorId,
 }) => {
   const { lang, toggleLang, tData } = useLanguage();
 
@@ -64,10 +68,21 @@ export const TopBar: React.FC<TopBarProps> = ({
               {stageName}
             </span>
           </h1>
-          <div className="text-[11px] text-stone-400 flex items-center gap-1.5">
+          <div className="text-[11px] text-stone-400 flex items-center gap-1.5 flex-wrap">
             <span>{state.settlementName}</span>
             <span>•</span>
             <span className="text-stone-300 font-medium">{tData.common.dayStep} {state.tick}</span>
+            <span>•</span>
+            <span className={`flex items-center gap-1 font-medium ${isMultiplayerConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${isMultiplayerConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              {isMultiplayerConnected ? 'Multiplayer Live' : 'Mod Solo / Offline'}
+            </span>
+            {actorId && (
+              <>
+                <span>•</span>
+                <span className="text-stone-400 truncate max-w-[120px]" title={actorId}>ID: {actorId.slice(0, 12)}</span>
+              </>
+            )}
             <span>•</span>
             <span className="text-emerald-400 flex items-center gap-0.5">
               <ShieldCheck className="w-3 h-3 inline" /> {tData.common.anonymous}

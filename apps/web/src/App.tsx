@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { 
   GameState, 
   createInitialState, 
-  reduce, 
   EngineCommand, 
   BuildingType,
 } from '@stupul/engine';
@@ -19,6 +18,7 @@ import { AuditLegalModal } from './components/AuditLegalModal.js';
 import { TutorialModal } from './components/TutorialModal.js';
 import { CommunityWorkshopModal } from './components/CommunityWorkshopModal.js';
 import { useLanguage } from './i18n/LanguageContext.js';
+import { multiplayerClient } from './services/multiplayerClient.js';
 
 const storage = new OfflineStorage();
 
@@ -36,6 +36,7 @@ export const App: React.FC = () => {
   });
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isMultiplayerConnected, setIsMultiplayerConnected] = useState<boolean>(false);
   const [selectedCoord, setSelectedCoord] = useState<{ x: number; y: number } | null>(null);
   const [activeBuildTool, setActiveBuildTool] = useState<BuildTool>(null);
   const [eventsHistory, setEventsHistory] = useState<string[]>(() => [
@@ -77,7 +78,28 @@ export const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Conectare live multiplayer la serverul autoritativ cu fallback offline automat
+  useEffect(() => {
+    const unsub = multiplayerClient.connect(
+      (serverState) => {
+        if (serverState && serverState.grid && serverState.gridHeight) {
+          gameStateRef.current = serverState;
+          setGameState(serverState);
+          setIsMultiplayerConnected(true);
+        }
+      },
+      (ev) => {
+        setEventsHistory(h => [...h, ev].slice(-100));
+        showToast(ev, 'info');
+      }
+    );
+    return () => unsub();
+  }, [showToast]);
+
   const mission = useMemo(() => {
+    if (!gameState || !gameState.grid || !gameState.gridHeight) {
+      return { title: tData.mission.helpTitle, hint: tData.mission.houseHint };
+    }
     let houses = 0;
     let farms = 0;
     for (let y = 0; y < gameState.gridHeight; y++) {
@@ -101,14 +123,16 @@ export const App: React.FC = () => {
     return { title: tData.mission.helpTitle, hint: tData.mission.houseHint };
   }, [gameState, tData]);
 
-  const dispatchCommand = useCallback((cmd: EngineCommand) => {
-    const res = reduce(gameStateRef.current, cmd);
+  const actorId = useMemo(() => multiplayerClient.getActorId(), []);
+
+  const dispatchCommand = useCallback(async (cmd: EngineCommand) => {
+    const res = await multiplayerClient.dispatchCommand(cmd, gameStateRef.current);
     if (res.success) {
       gameStateRef.current = res.nextState;
       setGameState(res.nextState);
-      if (res.eventsEmitted.length > 0) {
-        setEventsHistory(h => [...h, ...res.eventsEmitted].slice(-100));
-        showToast(res.eventsEmitted[res.eventsEmitted.length - 1], 'success');
+      if (res.events && res.events.length > 0) {
+        setEventsHistory(h => [...h, ...res.events].slice(-100));
+        showToast(res.events[res.events.length - 1], 'success');
       }
     } else if (res.error) {
       showToast(res.error, 'error');
@@ -131,18 +155,18 @@ export const App: React.FC = () => {
     if (!activeBuildTool) return;
 
     if (activeBuildTool === 'claim') {
-      dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId: 'cetatean_local' });
+      dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId });
     } else if (activeBuildTool === 'upgrade') {
-      dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId: 'cetatean_local' });
+      dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId });
     } else if (activeBuildTool === 'demolish') {
-      dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId: 'cetatean_local' });
+      dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId });
     } else {
       dispatchCommand({
         type: 'CONSTRUCT_BUILDING',
         x,
         y,
         buildingType: activeBuildTool as BuildingType,
-        actorId: 'cetatean_local'
+        actorId,
       });
     }
   };
@@ -179,6 +203,8 @@ export const App: React.FC = () => {
         onOpenTutorial={() => setIsTutorialOpen(true)}
         onOpenWorkshop={() => setIsWorkshopOpen(true)}
         onShareCity={handleShareCity}
+        isMultiplayerConnected={isMultiplayerConnected}
+        actorId={actorId}
       />
 
       {/* Mission / Objective Banner */}
@@ -202,10 +228,10 @@ export const App: React.FC = () => {
         <ParcelInspector
           parcel={selectedParcel}
           onClose={() => setSelectedCoord(null)}
-          onClaim={(x, y) => dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId: 'cetatean_local' })}
-          onBuild={(x, y, type) => dispatchCommand({ type: 'CONSTRUCT_BUILDING', x, y, buildingType: type, actorId: 'cetatean_local' })}
-          onUpgrade={(x, y) => dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId: 'cetatean_local' })}
-          onDemolish={(x, y) => dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId: 'cetatean_local' })}
+          onClaim={(x, y) => dispatchCommand({ type: 'CLAIM_PARCEL', x, y, actorId })}
+          onBuild={(x, y, type) => dispatchCommand({ type: 'CONSTRUCT_BUILDING', x, y, buildingType: type, actorId })}
+          onUpgrade={(x, y) => dispatchCommand({ type: 'UPGRADE_BUILDING', x, y, actorId })}
+          onDemolish={(x, y) => dispatchCommand({ type: 'DEMOLISH_BUILDING', x, y, actorId })}
           availableMaterials={gameState.resources.materials}
           availableCredits={gameState.resources.virtualCredits}
         />
@@ -224,7 +250,7 @@ export const App: React.FC = () => {
         <GovernanceModal
           state={gameState}
           onClose={() => setIsGovernanceOpen(false)}
-          onUpdatePolicy={(key, val) => dispatchCommand({ type: 'SET_POLICY', policyKey: key, value: val, actorId: 'cetatean_local' })}
+          onUpdatePolicy={(key, val) => dispatchCommand({ type: 'SET_POLICY', policyKey: key, value: val, actorId })}
         />
       )}
 
@@ -232,14 +258,14 @@ export const App: React.FC = () => {
         <PuzzleModal
           state={gameState}
           onClose={() => setIsPuzzleOpen(false)}
-          onRotateTile={(x, y) => dispatchCommand({ type: 'ROTATE_PUZZLE_TILE', x, y, actorId: 'cetatean_local' })}
+          onRotateTile={(x, y) => dispatchCommand({ type: 'ROTATE_PUZZLE_TILE', x, y, actorId })}
         />
       )}
 
       {isCivicTasksOpen && (
         <CivicTasksModal
           onClose={() => setIsCivicTasksOpen(false)}
-          onPerformTask={kind => dispatchCommand({ type: 'WORK_CIVIC_TASK', actorId: 'cetatean_local', taskKind: kind })}
+          onPerformTask={kind => dispatchCommand({ type: 'WORK_CIVIC_TASK', actorId, taskKind: kind })}
         />
       )}
 
@@ -255,7 +281,17 @@ export const App: React.FC = () => {
         <AuditLegalModal
           state={gameState}
           onClose={() => setIsAuditLegalOpen(false)}
-          onImportState={setGameState}
+          onImportState={(newState) => {
+            gameStateRef.current = newState;
+            setGameState(newState);
+          }}
+        />
+      )}
+
+      {isWorkshopOpen && (
+        <CommunityWorkshopModal
+          isOpen={isWorkshopOpen}
+          onClose={() => setIsWorkshopOpen(false)}
         />
       )}
 
@@ -274,23 +310,20 @@ export const App: React.FC = () => {
         />
       )}
 
-      {isWorkshopOpen && (
-        <CommunityWorkshopModal
-          isOpen={isWorkshopOpen}
-          onClose={() => setIsWorkshopOpen(false)}
-        />
-      )}
 
-      {/* Toast feedback */}
+
+      {/* Floating Notifications (Toast) */}
       {toast && (
-        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg border text-sm font-semibold shadow-xl max-w-[90vw] text-center transition-opacity ${
-          toast.kind === 'error'
-            ? 'bg-red-950/95 border-red-600/60 text-red-100'
-            : toast.kind === 'success'
-              ? 'bg-emerald-950/95 border-emerald-600/60 text-emerald-100'
-              : 'bg-stone-900/95 border-amber-600/50 text-amber-100'
-        }`}>
-          {toast.message}
+        <div 
+          className={`fixed bottom-20 right-6 px-4 py-2.5 rounded-lg border shadow-xl z-50 text-sm flex items-center gap-2 animate-bounce transition-all ${
+            toast.kind === 'success' 
+              ? 'bg-emerald-950/95 border-emerald-500/60 text-emerald-200' 
+              : toast.kind === 'error'
+              ? 'bg-rose-950/95 border-rose-500/60 text-rose-200'
+              : 'bg-stone-900/95 border-amber-600/50 text-amber-200'
+          }`}
+        >
+          <span>{toast.message}</span>
         </div>
       )}
     </div>

@@ -167,3 +167,102 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.events = [];
   }
 }
+
+/**
+ * Interfață compatibilă cu Cloudflare Workers D1 Database API
+ */
+export interface D1DatabaseLike {
+  prepare(sql: string): {
+    bind(...values: unknown[]): {
+      first<T = unknown>(): Promise<T | null> | T | null;
+      run(): Promise<{ success: boolean }> | { success: boolean };
+      all<T = unknown>(): Promise<{ results: T[] }> | { results: T[] };
+    };
+  };
+  exec(sql: string): Promise<unknown> | unknown;
+}
+
+/**
+ * Adapter pentru Cloudflare D1 (Serverless SQLite la margine).
+ * Menține un snapshot de sincronizare pentru compatibilitate cu interfața StorageAdapter,
+ * aplicând modificările tranzacțional în D1.
+ */
+export class CloudflareD1StorageAdapter implements StorageAdapter {
+  private inMemoryCache: MemoryStorageAdapter;
+
+  constructor(public readonly d1?: D1DatabaseLike) {
+    this.inMemoryCache = new MemoryStorageAdapter();
+    if (this.d1) {
+      this.initSchema();
+    }
+  }
+
+  private initSchema(): void {
+    if (!this.d1) return;
+    this.d1.exec(`
+      CREATE TABLE IF NOT EXISTS state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        json TEXT NOT NULL,
+        version INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS commands (
+        command_id TEXT PRIMARY KEY,
+        result TEXT NOT NULL,
+        applied_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        state_hash TEXT NOT NULL,
+        at INTEGER NOT NULL
+      );
+    `);
+  }
+
+  loadState(): { json: string; version: number } | null {
+    return this.inMemoryCache.loadState();
+  }
+
+  saveState(json: string, version: number): void {
+    this.inMemoryCache.saveState(json, version);
+    if (this.d1) {
+      this.d1.prepare('INSERT OR REPLACE INTO state (id, json, version) VALUES (1, ?, ?)').bind(json, version).run();
+    }
+  }
+
+  hasCommand(commandId: string): boolean {
+    return this.inMemoryCache.hasCommand(commandId);
+  }
+
+  saveCommand(commandId: string, result: string, appliedAt: number): void {
+    this.inMemoryCache.saveCommand(commandId, result, appliedAt);
+    if (this.d1) {
+      this.d1.prepare('INSERT INTO commands (command_id, result, applied_at) VALUES (?, ?, ?)').bind(commandId, result, appliedAt).run();
+    }
+  }
+
+  appendEvent(tick: number, type: string, actor: string, payload: string, stateHash: string, at: number): void {
+    this.inMemoryCache.appendEvent(tick, type, actor, payload, stateHash, at);
+    if (this.d1) {
+      this.d1.prepare('INSERT INTO events (tick, type, actor, payload, state_hash, at) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(tick, type, actor, payload, stateHash, at)
+        .run();
+    }
+  }
+
+  getEventsSince(seq: number): EventRecord[] {
+    return this.inMemoryCache.getEventsSince(seq);
+  }
+
+  transaction<T>(fn: () => T): T {
+    return this.inMemoryCache.transaction(fn);
+  }
+
+  close(): void {
+    this.inMemoryCache.close();
+  }
+}
+

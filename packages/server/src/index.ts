@@ -6,6 +6,7 @@ export * from './storageAdapter.js';
 export * from './db.js';
 export * from './authority.js';
 export * from './httpServer.js';
+export * from './auth.js';
 
 const port = Number(process.env.STUPUL_SERVER_PORT ?? 8787);
 const dbPath = process.env.STUPUL_SERVER_DB ?? './runtime/stupul-city.sqlite';

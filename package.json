@@ -13,6 +13,8 @@
     "test:e2e": "node scripts/e2e_gameplay.cjs",
     "typecheck": "tsc --build && tsc --noEmit -p apps/web/tsconfig.json",
     "lint": "eslint .",
+    "server": "node packages/server/dist/index.js",
+    "test:multiplayer": "node scripts/e2e_two_browsers_multiplayer.cjs",
     "dev": "npm run dev --workspace=apps/web",
     "preview": "npm run preview --workspace=apps/web"
   },

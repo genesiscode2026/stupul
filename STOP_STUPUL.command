@@ -84,6 +84,17 @@ fi
 
 rm -f "$PID_FILE" "$PORT_FILE"
 
+BACKEND_PID_FILE="$RUNTIME_DIR/stupul_backend.pid"
+if [ -f "$BACKEND_PID_FILE" ]; then
+  BPID="$(tr -d '[:space:]' < "$BACKEND_PID_FILE")"
+  if [ -n "$BPID" ] && ps -p "$BPID" >/dev/null 2>&1; then
+    say "Opresc serverul autoritativ multiplayer (PID $BPID)..."
+    kill -TERM "$BPID" 2>/dev/null || true
+  fi
+  rm -f "$BACKEND_PID_FILE"
+fi
+
+
 echo "========================================================"
 say "STUPUL a fost oprit cu succes."
 say "Procesul $TARGET_PID a fost eliberat."

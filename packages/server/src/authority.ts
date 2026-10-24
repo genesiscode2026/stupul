@@ -10,6 +10,8 @@ export interface ApplyResult {
   error?: string;
 }
 
+export type StateChangeListener = (state: GameState, version: number, events: string[]) => void;
+
 /**
  * Autoritatea centrală a orașului comun.
  * Clientul trimite intenția; serverul validează, aplică prin reducer-ul
@@ -20,6 +22,7 @@ export class Authority {
   private version: number;
   private writeDisabled = false;
   private readonly db: StateDB;
+  private readonly listeners = new Set<StateChangeListener>();
 
   constructor(db: StateDB, seed = 42) {
     this.db = db;
@@ -33,6 +36,13 @@ export class Authority {
       db.saveState(JSON.stringify(this.state), this.version);
       db.appendEvent(0, 'INIT', 'system', '{}', this.state.stateHash, Date.now());
     }
+  }
+
+  subscribe(listener: StateChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   getState(): GameState {
@@ -80,6 +90,16 @@ export class Authority {
 
     this.state = nextState;
     this.version = newVersion;
+
+    // Notificare abonați în timp real (ex: conexiuni SSE ale altor jucători)
+    for (const listener of this.listeners) {
+      try {
+        listener(this.state, this.version, res.eventsEmitted);
+      } catch (err) {
+        console.error('StateChangeListener error:', err);
+      }
+    }
+
     return { applied: true, idempotentReplay: false, version: this.version, state: this.state, events: res.eventsEmitted };
   }
 
