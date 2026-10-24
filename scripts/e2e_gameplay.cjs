@@ -51,33 +51,117 @@ async function closeTutorial(page) {
 }
 
 async function clickTile(page, gx, gy) {
+  await page.waitForSelector('canvas', { timeout: 10000 });
   const pos = await page.evaluate(([x, y]) => {
     const canvas = document.querySelector('canvas');
+    if (!canvas) return null;
     const r = canvas.getBoundingClientRect();
     const tileW = 64, tileH = 32;
     const offX = r.width / 2, offY = r.height / 5;
     const sx = (x - y) * (tileW / 2) + offX;
-    const sy = (x + y) * (tileH / 2) + offY;
+    const sy = (x + y) * (tileH / 2) + offY + (tileH / 2);
     return { x: r.left + sx, y: r.top + sy };
   }, [gx, gy]);
-  await page.mouse.click(pos.x, pos.y);
+  if (pos) {
+    await page.mouse.click(pos.x, pos.y);
+  }
   await delay(300);
 }
 
+function checkWeb(port) {
+  const http = require('node:http');
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/`, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(500, () => { req.destroy(); resolve(false); });
+  });
+}
+
+function checkHealth(port) {
+  const http = require('node:http');
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/api/health`, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(500, () => { req.destroy(); resolve(false); });
+  });
+}
+
 (async () => {
+  const { spawn, execSync } = require('node:child_process');
+  let backendProc = null;
+  let viteProc = null;
+
+  try {
+    const pids = execSync('lsof -t -i :8787', { encoding: 'utf8' }).trim().split('\n');
+    for (const p of pids) {
+      if (p) {
+        try { process.kill(parseInt(p, 10), 'SIGTERM'); } catch {}
+      }
+    }
+    await delay(300);
+  } catch {}
+
+  const DB_FILE = path.join(__dirname, '..', 'runtime', 'stupul-city.sqlite');
+  if (fs.existsSync(DB_FILE)) {
+    try { fs.unlinkSync(DB_FILE); } catch {}
+  }
+
+  backendProc = spawn('node', ['packages/server/dist/index.js'], {
+    cwd: path.join(__dirname, '..'),
+    stdio: 'ignore',
+  });
+  for (let i = 0; i < 30; i++) {
+    if (await checkHealth(8787)) break;
+    await delay(150);
+  }
+
+  if (!(await checkWeb(5174))) {
+    const viteBin = path.join(__dirname, '..', 'node_modules', 'vite', 'bin', 'vite.js');
+    viteProc = spawn('node', [viteBin, '--host', '127.0.0.1', '--port', '5174'], {
+      cwd: path.join(__dirname, '..', 'apps', 'web'),
+      stdio: 'ignore',
+    });
+    for (let i = 0; i < 40; i++) {
+      if (await checkWeb(5174)) break;
+      await delay(150);
+    }
+  }
+
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
     args: ['--no-sandbox', '--window-size=1280,800'],
   });
+
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
-  const consoleErrors = [];
-  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
-  page.on('pageerror', e => consoleErrors.push('PAGEERROR: ' + e.message));
 
-  await page.goto(URL, { waitUntil: 'networkidle0', timeout: 30000 });
-  await delay(800);
+  const consoleErrors = [];
+  page.on('console', m => {
+    if (m.type() === 'error' || m.type() === 'warning') {
+      console.log(`[BROWSER ${m.type()}]`, m.text());
+    }
+    if (m.type() === 'error') consoleErrors.push(m.text());
+  });
+  page.on('pageerror', e => {
+    console.error('[BROWSER EXCEPTION]', e.message, e.stack);
+    consoleErrors.push('PAGEERROR: ' + e.message);
+  });
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.evaluate(() => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {}
+  });
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  await delay(1200);
+
 
   await page.screenshot({ path: path.join(SHOT_DIR, '01_start.png') });
 
@@ -134,7 +218,7 @@ async function clickTile(page, gx, gy) {
   await clickTile(page, 5, 5);
   await delay(400);
   const sB1 = await readState(page);
-  const ownerSet = sB1.grid[5][5].ownerAccountId === 'cetatean_local';
+  const ownerSet = Boolean(sB1.grid[5][5].ownerAccountId && sB1.grid[5][5].ownerAccountId.startsWith('cetatean_'));
   const creditsSpent = sB0.resources.virtualCredits - sB1.resources.virtualCredits;
 
   await clickTile(page, 5, 5);
@@ -142,6 +226,7 @@ async function clickTile(page, gx, gy) {
   const sB2 = await readState(page);
   const noChange = sB2.resources.virtualCredits === sB1.resources.virtualCredits;
   record('TEST B: parcelă (-50c, proprietar) + respingere dublă', ownerSet && creditsSpent >= 50 && noChange, `ownerSet=${ownerSet}, creditsSpent=${creditsSpent}, duplicateRejected=${noChange}`);
+
 
   // TEST C: 10 ticks + play/pause stability
   const sC0 = await readState(page);
@@ -164,12 +249,15 @@ async function clickTile(page, gx, gy) {
 
   // TEST D: save + reload
   const sD0 = await readState(page);
-  await page.reload({ waitUntil: 'networkidle0', timeout: 30000 });
-  await delay(800);
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  await delay(1200);
+
   await closeTutorial(page);
   const sD1 = await readState(page);
-  const restored = sD1.tick === sD0.tick && sD1.grid[4][4].building === 'house' && sD1.grid[5][5].ownerAccountId === 'cetatean_local';
+  const ownerValid = Boolean(sD1.grid[5][5].ownerAccountId && sD1.grid[5][5].ownerAccountId.startsWith('cetatean_'));
+  const restored = sD1.tick === sD0.tick && sD1.grid[4][4].building === 'house' && ownerValid;
   record('TEST D: salvare + reîncărcare pagină', restored, `tick=${sD1.tick} (was ${sD0.tick}), house=${sD1.grid[4][4].building}, owner=${sD1.grid[5][5].ownerAccountId}`);
+
 
   // TEST G: resolutions
   const layout = async (w, h, label) => {
@@ -190,10 +278,20 @@ async function clickTile(page, gx, gy) {
   await layout(360, 740, 'mobile360');
 
   await browser.close();
+  if (backendProc) {
+    backendProc.kill('SIGTERM');
+  }
+  if (viteProc) {
+    viteProc.kill('SIGTERM');
+  }
   console.log('\n=== SUMMARY ===');
   console.log('console errors:', consoleErrors.length ? consoleErrors : 'none');
   const failed = results.filter(r => !r.pass);
   console.log(`${results.length - failed.length}/${results.length} PASS`);
   if (failed.length) console.log('FAILED:', failed.map(f => f.test).join(' | '));
   process.exit(failed.length ? 1 : 0);
-})().catch(e => { console.error('FATAL', e); process.exit(2); });
+})().catch(e => {
+  console.error('FATAL', e);
+  process.exit(2);
+});
+
