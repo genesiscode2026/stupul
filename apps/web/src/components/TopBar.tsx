@@ -15,8 +15,10 @@ import {
   Scale,
   ShieldCheck,
   HelpCircle,
-  Share2
+  Share2,
+  Globe
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext.js';
 
 interface TopBarProps {
   state: GameState;
@@ -33,13 +35,6 @@ interface TopBarProps {
   onShareCity?: () => void;
 }
 
-const STAGE_NAMES = {
-  frontier_outpost: 'Avanpost de Frontieră',
-  wild_west_settlement: 'Așezare Vestul Sălbatic',
-  growing_town: 'Târg în Creștere',
-  modern_civilisation: 'Civilizație Prosperă'
-};
-
 export const TopBar: React.FC<TopBarProps> = ({
   state,
   isPlaying,
@@ -54,6 +49,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenWorkshop,
   onShareCity
 }) => {
+  const { lang, toggleLang, tData } = useLanguage();
+
+  const stageName = tData.topbar.stages[state.stage] || state.stage;
+
   return (
     <header className="w-full frontier-panel border-b border-amber-900/40 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-20">
       {/* Title & Stage */}
@@ -62,16 +61,16 @@ export const TopBar: React.FC<TopBarProps> = ({
           <h1 className="font-title text-base md:text-lg font-black tracking-wider text-amber-300 flex items-center gap-2">
             STUPUL
             <span className="text-xs font-normal px-2 py-0.5 rounded bg-amber-950/80 border border-amber-600/40 text-amber-200">
-              {STAGE_NAMES[state.stage]}
+              {stageName}
             </span>
           </h1>
           <div className="text-[11px] text-stone-400 flex items-center gap-1.5">
             <span>{state.settlementName}</span>
             <span>•</span>
-            <span className="text-stone-300 font-medium">Ziua / Pasul: {state.tick}</span>
+            <span className="text-stone-300 font-medium">{tData.common.dayStep} {state.tick}</span>
             <span>•</span>
             <span className="text-emerald-400 flex items-center gap-0.5">
-              <ShieldCheck className="w-3 h-3 inline" /> Mod Oaspete (Anonim)
+              <ShieldCheck className="w-3 h-3 inline" /> {tData.common.anonymous}
             </span>
           </div>
         </div>
@@ -81,14 +80,14 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={onTogglePlay}
             className={`p-1.5 rounded transition ${isPlaying ? 'bg-amber-600 text-stone-900' : 'hover:bg-stone-800 text-amber-400'}`}
-            title={isPlaying ? 'Pauză' : 'Pornire Simulare'}
+            title={isPlaying ? tData.topbar.pause : tData.topbar.play}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
           <button
             onClick={onStepTick}
             className="p-1.5 rounded hover:bg-stone-800 text-stone-300 transition"
-            title="Avansează un pas (1 Tick)"
+            title={tData.topbar.step}
           >
             <SkipForward className="w-4 h-4" />
           </button>
@@ -118,7 +117,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Virtual Credits */}
         <div 
           className="flex items-center gap-1.5 bg-stone-950/60 px-2.5 py-1 rounded border border-amber-500/40 cursor-help"
-          title="Credite Virtuale STUPUL (100% virtuale, neconvertibile în bani reali)"
+          title={tData.common.vCreditsTitle}
         >
           <Coins className="w-4 h-4 text-yellow-400" />
           <div>
@@ -137,7 +136,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               state.population.satisfaction >= 45 ? 'bg-amber-950 text-amber-300' :
               'bg-red-950 text-red-300'
             }`}>
-              {state.population.satisfaction}% mulțumire
+              {state.population.satisfaction}% {tData.common.satisfaction}
             </span>
           </div>
         </div>
@@ -145,13 +144,23 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Modals & Tools Action Buttons */}
       <div className="flex items-center gap-1.5">
+        {/* Language Switcher Button */}
+        <button
+          onClick={toggleLang}
+          className="frontier-button px-2.5 py-1.5 rounded text-xs font-bold text-amber-300 border-amber-500/60 flex items-center gap-1 hover:border-amber-400 transition shadow"
+          title={lang === 'ro' ? 'Switch to English (🇬🇧 EN)' : 'Comută în Română (🇷🇴 RO)'}
+        >
+          <Globe className="w-3.5 h-3.5 text-amber-400" />
+          <span>{lang === 'ro' ? 'RO 🇷🇴' : 'EN 🇬🇧'}</span>
+        </button>
+
         <button
           onClick={onOpenGovernance}
           className="frontier-button px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5"
           title="Guvernanță, Sfat Civic & Alegeri"
         >
           <Landmark className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden sm:inline">Guvernanță</span>
+          <span className="hidden sm:inline">{tData.topbar.governance}</span>
         </button>
 
         <button
@@ -162,7 +171,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           title="Apeduct & Rețea Infrastructură"
         >
           <Droplets className="w-3.5 h-3.5 text-sky-400" />
-          <span className="hidden sm:inline">Apeduct</span>
+          <span className="hidden sm:inline">{tData.topbar.aqueduct}</span>
         </button>
 
         <button
@@ -171,7 +180,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           title="Muncă & Activități Economice"
         >
           <Pickaxe className="w-3.5 h-3.5 text-amber-300" />
-          <span className="hidden sm:inline">Muncă</span>
+          <span className="hidden sm:inline">{tData.topbar.work}</span>
         </button>
 
         {onOpenWorkshop && (
@@ -181,7 +190,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             title="Atelierul Comunității (Community Workshop) — Propuneri & Merit"
           >
             <Hammer className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">Atelier</span>
+            <span className="hidden md:inline">{tData.topbar.workshop}</span>
           </button>
         )}
 
@@ -189,7 +198,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={onShareCity}
             className="frontier-button px-2 py-1.5 rounded text-xs flex items-center text-amber-300"
-            title="Partajează Așezarea (Link Civic)"
+            title={tData.topbar.shareCity}
           >
             <Share2 className="w-3.5 h-3.5 text-amber-300" />
           </button>
@@ -198,7 +207,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onOpenTimeline}
           className="frontier-button px-2 py-1.5 rounded text-xs flex items-center"
-          title="Jurnal Istoric & Replay"
+          title={tData.topbar.timeline}
         >
           <History className="w-3.5 h-3.5 text-stone-300" />
         </button>
@@ -206,7 +215,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onOpenAuditLegal}
           className="frontier-button px-2 py-1.5 rounded text-xs flex items-center"
-          title="Audit, Integritate & Redevențe Fondator"
+          title={tData.topbar.audit}
         >
           <Scale className="w-3.5 h-3.5 text-amber-400" />
         </button>
@@ -214,10 +223,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onOpenTutorial}
           className="frontier-button px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1 text-amber-300 border-amber-500/50"
-          title="Ghid & Tutorial Interactiv"
+          title={tData.topbar.guide}
         >
           <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden sm:inline">Ghid</span>
+          <span className="hidden sm:inline">{tData.topbar.guide}</span>
         </button>
       </div>
     </header>

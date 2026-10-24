@@ -11,6 +11,7 @@ import {
   Calculator,
   Lock
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext.js';
 
 interface AuditLegalModalProps {
   state: GameState;
@@ -23,6 +24,7 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
   onClose,
   onImportState
 }) => {
+  const { tData } = useLanguage();
   const [testGross, setTestGross] = useState<number>(100000);
   const [testTax, setTestTax] = useState<number>(10000);
   const [testRefunds, setTestRefunds] = useState<number>(2000);
@@ -59,9 +61,9 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
       if (res.success && res.state) {
         onImportState(res.state);
         setImportError(null);
-        alert('Snapshot încărcat cu succes! Integritatea stării a fost validată.');
+        alert(tData.audit.snapshotSuccess);
       } else {
-        setImportError(res.error || 'Eroare necunoscută la validare');
+        setImportError(res.error || 'Eroare necunoscută la validare / Unknown validation error');
       }
     };
     reader.readAsText(file);
@@ -75,10 +77,10 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
           <div className="flex items-center gap-2">
             <Scale className="w-5 h-5 text-amber-400" />
             <h2 className="font-title text-base font-bold text-amber-200">
-              Audit, Integritate & Redevențe Fondator (GENESIS v1.1)
+              {tData.audit.title}
             </h2>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-100 p-1.5 rounded">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-100 p-1 rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -89,9 +91,9 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-bold text-amber-300 flex items-center gap-1.5">
                 <Hash className="w-4 h-4 text-amber-400" />
-                Hash Canonic SHA-256 de Integritate:
+                {tData.audit.hashLabel}
               </span>
-              <span className="text-[10px] text-stone-400">Verificabil pe orice mașină</span>
+              <span className="text-[10px] text-stone-400">{tData.audit.hashSub}</span>
             </div>
             <div className="p-2 bg-stone-950 rounded border border-stone-800 font-mono text-[11px] text-amber-400/90 break-all select-all">
               {state.stateHash}
@@ -102,11 +104,11 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
                 className="frontier-button px-3 py-1.5 rounded font-semibold text-stone-200 flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5 text-amber-400" />
-                Descarcă Snapshot JSON
+                {tData.audit.downloadSnapshot}
               </button>
               <label className="frontier-button px-3 py-1.5 rounded font-semibold text-stone-200 flex items-center gap-1.5 cursor-pointer">
                 <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                Încarcă Snapshot JSON
+                {tData.audit.uploadSnapshot}
                 <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
               </label>
             </div>
@@ -122,20 +124,20 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
             <div className="flex items-center justify-between border-b border-stone-800 pb-2">
               <div className="font-bold text-amber-300 flex items-center gap-1.5 text-sm">
                 <Calculator className="w-4 h-4 text-amber-400" />
-                Modelul Contractual al Redevenței de 5% (LEG-001)
+                {tData.audit.royaltyModelTitle}
               </div>
               <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-600/40 text-amber-300 font-bold text-[10px]">
-                5% FIX DIN NET ELIGIBIL
+                {tData.audit.royaltyBadge}
               </span>
             </div>
 
             <p className="text-stone-300 text-[11px] leading-relaxed">
-              Formula contractuală: <strong>Încasări Brute</strong> minus <strong>Taxe/TVA</strong>, <strong>Rambursări</strong> și <strong>Comisioane Directe de Procesare</strong>. Cheltuielile generale, salariile și marketingul <strong>NU</strong> reduc baza eligibilă (anti-deturnare).
+              {tData.audit.royaltyFormula}
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
               <div className="bg-stone-950/60 p-2 rounded border border-stone-800">
-                <span className="text-[10px] text-stone-400 block">Încasări Brute (€)</span>
+                <span className="text-[10px] text-stone-400 block">{tData.audit.gross}</span>
                 <input
                   type="number"
                   value={testGross}
@@ -144,7 +146,7 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
                 />
               </div>
               <div className="bg-stone-950/60 p-2 rounded border border-stone-800">
-                <span className="text-[10px] text-stone-400 block">Taxe / TVA (€)</span>
+                <span className="text-[10px] text-stone-400 block">{tData.audit.taxes}</span>
                 <input
                   type="number"
                   value={testTax}
@@ -153,7 +155,7 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
                 />
               </div>
               <div className="bg-stone-950/60 p-2 rounded border border-stone-800">
-                <span className="text-[10px] text-stone-400 block">Rambursări (€)</span>
+                <span className="text-[10px] text-stone-400 block">{tData.audit.refunds}</span>
                 <input
                   type="number"
                   value={testRefunds}
@@ -162,7 +164,7 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
                 />
               </div>
               <div className="bg-stone-950/60 p-2 rounded border border-stone-800">
-                <span className="text-[10px] text-stone-400 block">Taxe Procesator (€)</span>
+                <span className="text-[10px] text-stone-400 block">{tData.audit.processorFees}</span>
                 <input
                   type="number"
                   value={testFees}
@@ -174,11 +176,11 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
 
             <div className="bg-stone-950 p-3 rounded border border-amber-600/40 flex justify-between items-center text-xs">
               <div>
-                <span className="text-stone-400">Bază Netă Eligibilă: </span>
+                <span className="text-stone-400">{tData.audit.eligibleBase} </span>
                 <strong className="text-stone-100">{royaltyResult.eligible.toLocaleString()} €</strong>
               </div>
               <div className="text-right">
-                <span className="text-stone-400">Redevență Fondator (5%): </span>
+                <span className="text-stone-400">{tData.audit.founderRoyalty} </span>
                 <strong className="text-amber-400 text-sm">{royaltyResult.founderRoyaltyGross.toLocaleString()} €</strong>
               </div>
             </div>
@@ -189,21 +191,21 @@ export const AuditLegalModal: React.FC<AuditLegalModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-bold text-stone-200 flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-rose-400" />
-                Statut Legal Gates (Fail-Closed):
+                {tData.audit.legalGateTitle}
               </span>
               <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-700 text-rose-300 font-bold text-[10px]">
-                MONETIZARE STRICT BLOCATĂ
+                {tData.audit.monetizationLocked}
               </span>
             </div>
             <p className="text-stone-400 text-[11px] leading-relaxed">
-              Conform LEG-T05 și regulilor GENESIS v1.1, nicio funcție de plată reală sau monedă tranzacționabilă nu poate fi activată fără îndeplinirea cumulativă a tuturor celor 6 porți legale (Operator verificat, Licență 5% semnată, Aviz Avocat IP/Fiscal, GDPR, etc.).
+              {tData.audit.legalGateDesc}
             </p>
           </div>
         </div>
 
         <div className="px-6 py-3 border-t border-stone-800 bg-stone-950/60 flex justify-end">
           <button onClick={onClose} className="frontier-button px-4 py-1.5 rounded font-semibold text-stone-200 text-xs">
-            Închide
+            {tData.common.close}
           </button>
         </div>
       </div>

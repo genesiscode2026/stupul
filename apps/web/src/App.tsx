@@ -18,6 +18,7 @@ import { TimelineModal } from './components/TimelineModal.js';
 import { AuditLegalModal } from './components/AuditLegalModal.js';
 import { TutorialModal } from './components/TutorialModal.js';
 import { CommunityWorkshopModal } from './components/CommunityWorkshopModal.js';
+import { useLanguage } from './i18n/LanguageContext.js';
 
 const storage = new OfflineStorage();
 
@@ -27,6 +28,8 @@ interface Toast {
 }
 
 export const App: React.FC = () => {
+  const { tData } = useLanguage();
+
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = storage.loadLocal();
     return saved || createInitialState(42, 'Avanpostul Văii');
@@ -35,9 +38,9 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [selectedCoord, setSelectedCoord] = useState<{ x: number; y: number } | null>(null);
   const [activeBuildTool, setActiveBuildTool] = useState<BuildTool>(null);
-  const [eventsHistory, setEventsHistory] = useState<string[]>([
-    'Avanpostul de Frontieră a fost întemeiat pe malul râului.',
-    'Primele 100 de suflete s-au așezat în vale.'
+  const [eventsHistory, setEventsHistory] = useState<string[]>(() => [
+    tData.timeline.initialEvent1,
+    tData.timeline.initialEvent2
   ]);
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -87,16 +90,16 @@ export const App: React.FC = () => {
     const housingCapacity = houses * 25;
 
     if (gameState.infrastructurePuzzle.solved) {
-      return { title: 'Așezarea crește!', hint: 'Continuă să construiești, să câștigi V-Credits și să cumperi parcele noi.' };
+      return { title: tData.mission.growingTitle, hint: tData.mission.growingHint };
     }
     if (housingCapacity >= 125 && farms >= 1) {
-      return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Rezolvă puzzle-ul Apeductului pentru apă potabilă.' };
+      return { title: tData.mission.helpTitle, hint: tData.mission.aqueductHint };
     }
     if (housingCapacity >= 125) {
-      return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Construiește o Fermă pentru a asigura hrana.' };
+      return { title: tData.mission.helpTitle, hint: tData.mission.farmHint };
     }
-    return { title: 'AJUTĂ AȘEZAREA SĂ CREASCĂ', hint: 'Colectează materiale prin „Muncă" și construiește o Casă.' };
-  }, [gameState]);
+    return { title: tData.mission.helpTitle, hint: tData.mission.houseHint };
+  }, [gameState, tData]);
 
   const dispatchCommand = useCallback((cmd: EngineCommand) => {
     const res = reduce(gameStateRef.current, cmd);
@@ -152,14 +155,14 @@ export const App: React.FC = () => {
     const url = `${window.location.origin}/?visit=1&tick=${gameState.tick}&stage=${gameState.stage}`;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(url).then(() => {
-        showToast('Link civic copiat în clipboard! Trimite-l comunității.', 'success');
+        showToast(tData.topbar.shareSuccess, 'success');
       }).catch(() => {
-        showToast(`Link așezare: ${url}`, 'info');
+        showToast(`${tData.topbar.shareInfo} ${url}`, 'info');
       });
     } else {
-      showToast(`Link așezare: ${url}`, 'info');
+      showToast(`${tData.topbar.shareInfo} ${url}`, 'info');
     }
-  }, [gameState.tick, gameState.stage, showToast]);
+  }, [gameState.tick, gameState.stage, showToast, tData]);
 
   return (
     <div className="relative w-screen h-screen flex flex-col bg-stone-950 text-stone-100 overflow-hidden">
@@ -180,7 +183,7 @@ export const App: React.FC = () => {
 
       {/* Mission / Objective Banner */}
       <div className="w-full px-4 py-1.5 bg-gradient-to-r from-amber-950/90 via-stone-900/90 to-amber-950/90 border-b border-amber-800/40 flex items-center gap-2.5 z-10">
-        <span className="text-amber-400 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">🎯 Misiune</span>
+        <span className="text-amber-400 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">{tData.mission.missionLabel}</span>
         <span className="font-title text-amber-100 text-sm font-semibold whitespace-nowrap">{mission.title}</span>
         <span className="text-stone-300 text-xs truncate hidden sm:inline">— {mission.hint}</span>
       </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameState, PipeType } from '@stupul/engine';
 import { X, Droplets, RotateCw, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext.js';
 
 interface PuzzleModalProps {
   state: GameState;
@@ -13,6 +14,7 @@ export const PuzzleModal: React.FC<PuzzleModalProps> = ({
   onClose,
   onRotateTile
 }) => {
+  const { tData } = useLanguage();
   const puzzle = state.infrastructurePuzzle;
 
   const renderPipeIcon = (type: PipeType, rotation: number, connected: boolean) => {
@@ -66,7 +68,7 @@ export const PuzzleModal: React.FC<PuzzleModalProps> = ({
           <div className="flex items-center gap-2">
             <Droplets className="w-5 h-5 text-sky-400" />
             <h2 className="font-title text-base font-bold text-sky-200">
-              Puzzle Apeduct: Conectarea Apei
+              {tData.puzzle.title}
             </h2>
           </div>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-100 p-1 rounded">
@@ -77,23 +79,23 @@ export const PuzzleModal: React.FC<PuzzleModalProps> = ({
         {/* Puzzle Description & Status */}
         <div className="p-4 space-y-3 text-xs">
           <p className="text-stone-300 leading-relaxed">
-            Rotește segmentele de conductă pentru a ghida apa de la <strong>Izvor (stânga-sus)</strong> la <strong>Rezervorul orașului (dreapta-jos)</strong>. O rețea conectată crește producția de hrană cu 30%!
+            {tData.puzzle.description}
           </p>
 
           {puzzle.solved ? (
             <div className="bg-sky-950/80 border border-sky-400/60 p-3 rounded flex items-center gap-2.5 text-sky-200 font-bold">
               <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
               <div>
-                <div>Apeduct Funcțional! Apa curge spre rezervor.</div>
+                <div>{tData.puzzle.solvedTitle}</div>
                 <div className="text-[11px] font-normal text-sky-300/80 mt-0.5">
-                  Bonus activ: +30% producție agricolă la ferme.
+                  {tData.puzzle.solvedBonus}
                 </div>
               </div>
             </div>
           ) : (
             <div className="bg-amber-950/40 border border-amber-700/40 p-2.5 rounded text-amber-300 flex items-center gap-2">
               <RotateCw className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Apasă pe segmente pentru a le roti la 90°.</span>
+              <span>{tData.puzzle.rotateHint}</span>
             </div>
           )}
 
@@ -111,7 +113,7 @@ export const PuzzleModal: React.FC<PuzzleModalProps> = ({
                       className={`relative p-1 rounded transition hover:scale-105 active:scale-95 ${
                         tile.connected ? 'ring-1 ring-sky-400/60 shadow-lg shadow-sky-950' : 'opacity-85'
                       } ${isEnd ? 'cursor-default' : 'cursor-pointer hover:bg-stone-800'}`}
-                      title={isEnd ? tile.type : `Rotește segment (${x}, ${y})`}
+                      title={isEnd ? tile.type : `${tData.puzzle.rotateTitle} (${x}, ${y})`}
                     >
                       {renderPipeIcon(tile.type, tile.rotation, tile.connected)}
                     </button>
@@ -125,10 +127,10 @@ export const PuzzleModal: React.FC<PuzzleModalProps> = ({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-stone-800 bg-stone-950/60 flex justify-between items-center text-xs">
           <span className="text-stone-400">
-            Rezolvări: <strong className="text-stone-200">{puzzle.timesSolved}</strong>
+            {tData.puzzle.solvesCount} <strong className="text-stone-200">{puzzle.timesSolved}</strong>
           </span>
           <button onClick={onClose} className="frontier-button px-4 py-1.5 rounded font-semibold text-stone-200">
-            Închide
+            {tData.common.close}
           </button>
         </div>
       </div>

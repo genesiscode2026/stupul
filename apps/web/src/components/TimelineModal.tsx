@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, History, Scroll, Clock } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext.js';
 
 interface TimelineModalProps {
   events: string[];
@@ -12,6 +13,8 @@ export const TimelineModal: React.FC<TimelineModalProps> = ({
   currentTick,
   onClose
 }) => {
+  const { tData } = useLanguage();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none">
       <div className="frontier-panel w-full max-w-lg rounded-xl shadow-2xl flex flex-col overflow-hidden border border-amber-700/40 max-h-[85vh]">
@@ -19,7 +22,7 @@ export const TimelineModal: React.FC<TimelineModalProps> = ({
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-amber-400" />
             <h2 className="font-title text-base font-bold text-amber-200">
-              Jurnalul Istoric al Orașului (Append-Only)
+              {tData.timeline.title}
             </h2>
           </div>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-100 p-1 rounded">
@@ -31,7 +34,7 @@ export const TimelineModal: React.FC<TimelineModalProps> = ({
           <div className="bg-stone-950/60 p-2.5 rounded border border-stone-800 text-stone-300 flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
-              Istoric determinist imutabil (STP-007, STP-100). Pasul curent: <strong>{currentTick}</strong>.
+              {tData.timeline.subtitle} <strong>{currentTick}</strong>.
             </span>
           </div>
 
@@ -47,7 +50,7 @@ export const TimelineModal: React.FC<TimelineModalProps> = ({
             ))}
             {events.length === 0 && (
               <div className="text-center py-8 text-stone-500">
-                Niciun eveniment înregistrat încă.
+                {tData.timeline.noEvents}
               </div>
             )}
           </div>
@@ -55,7 +58,7 @@ export const TimelineModal: React.FC<TimelineModalProps> = ({
 
         <div className="px-5 py-3 border-t border-stone-800 bg-stone-950/60 flex justify-end">
           <button onClick={onClose} className="frontier-button px-4 py-1.5 rounded font-semibold text-stone-200 text-xs">
-            Închide
+            {tData.common.close}
           </button>
         </div>
       </div>
