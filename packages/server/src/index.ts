@@ -2,6 +2,7 @@ import { Authority } from './authority.js';
 import { StateDB } from './db.js';
 import { startHttpServer } from './httpServer.js';
 
+export * from './storageAdapter.js';
 export * from './db.js';
 export * from './authority.js';
 export * from './httpServer.js';

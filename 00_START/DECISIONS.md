@@ -10,3 +10,6 @@ DEC-008 Nu promite independență totală din prima zi; custode independent și 
 DEC-009 Recompensa dezvoltatorilor = muncă aprobată și contractată; nu distribuire automată de profit sau titluri financiare mascate.
 DEC-010 Contul pentru proprietate este motivat de persistența datelor, instalarea rămâne opțională; fără design compulsiv.
 DEC-011 Licența obligă părțile aderente, nu întreg internetul.
+DEC-012 (GENESIS v3.1) Fondatorul renunță la proprietatea intelectuală patrimonială permanentă, acțiuni sau conducere. Păstrează exclusiv dreptul economic pasiv, fix, de 5% din încasările nete eligibile (G-002), care continuă contractual la fiecare transfer (G-003). Drepturile patrimoniale se pot ceda complet operatorului/custodelui independent (G-001).
+DEC-013 (GENESIS v3.1) Plățile se fac automat către adresa publică Exodus prin flux on-chain (A) sau fiat reconciliat (B), protejat prin multi-sig independent și fără date sensibile în cod (G-004).
+DEC-014 (GENESIS v3.1) Niciun transfer nu se finalizează fără acord de aderare la obligația de 5% a dobânditorului (G-003). Cedentul garantează contractual asumarea.

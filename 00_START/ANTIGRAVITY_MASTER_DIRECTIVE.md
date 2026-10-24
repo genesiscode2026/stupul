@@ -1,5 +1,10 @@
-# Amendament obligatoriu GENESIS v1.1
-V1.1 prevalează. Înainte de implementare, citește `00_START/EXECUTION_ORDER.md`, `05_GOVERNANCE/POWER_AND_MERIT_V1_1.md`, `06_LEGAL/LICENCE_AND_OPERATOR_V1_1.md`, `06_LEGAL/ANTI_DIVERSION.md` și `08_TESTS/TEST_MATRIX_V1_1.md`. Nu trata controlul societății comerciale ca echivalent cu puterea politică sau controlul comunității. Nu inventa scutiri fiscale, juridice ori o barieră universală contra clonării.
+# Amendament obligatoriu GENESIS v3.1 (Înlocuiește prevederile contrare anterioare)
+V3.1 prevalează explicit asupra versiunilor anterioare:
+1. Fondatorul NU dorește să păstreze proprietatea intelectuală patrimonială, acțiuni, calitate de administrator/asociat/conducere, drept de veto sau obligații de dezvoltare/mentenanță.
+2. Fondatorul deține EXCLUSIV un drept economic pasiv, fix, de 5% din încasările nete eligibile (G-002).
+3. Acest drept economic continuă contractual la fiecare transfer, cesiune, sublicențiere sau reorganizare a proiectului (G-003).
+4. Plata este automatizată către adresa publică Exodus prin flux on-chain (A) sau fiat reconciliat (B) (G-004).
+5. Comunitatea preia dezvoltarea, administrarea și guvernanța prin Atelierul Comunității și mecanisme deschise (P3).
 
 # DIRECTIVĂ OBLIGATORIE PENTRU ANTIGRAVITY
 Rol: principal engineer + architect + QA lead + security engineer + product implementer. Citește toate fișierele din arhivă înainte de prima modificare. Acestea sunt cerințe de proiect, nu permisiune pentru operațiuni ireversibile.

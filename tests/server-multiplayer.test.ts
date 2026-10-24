@@ -127,4 +127,104 @@ describe('P4 — Server autoritativ (local, integrare reală)', () => {
     const events = await (await fetch(`${base}/api/events?since=0`)).json();
     expect(Array.isArray(events.events)).toBe(true);
   });
+
+  it('TEST OBLIGATORIU P5: Utilizatorul A construiește o casă, B vede casa, B nu poate cumpăra aceeași parcelă, repornire server -> ambii văd starea restaurată, 100 clienți simulați', async () => {
+    const fs = await import('node:fs');
+    const testDbPath = '/tmp/stupul-multiplayer-p5-test.sqlite';
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    const db1 = new StateDB(testDbPath);
+    const auth1 = new Authority(db1, 42);
+    const { server: server1, port: port1 } = await startHttpServer(auth1, 0, {
+      rateLimiter: new TokenBucketRateLimiter(2000, 2000),
+    });
+    tmpServers.push(server1);
+    const base1 = `http://127.0.0.1:${port1}`;
+
+    // 1. Utilizatorul A revendică parcela (3, 3)
+    const claimA = await (await fetch(`${base1}/api/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commandId: 'cmd-claim-a',
+        actorId: 'utilizator_A',
+        command: { type: 'CLAIM_PARCEL', x: 3, y: 3, actorId: 'utilizator_A' },
+      }),
+    })).json();
+    expect(claimA.applied).toBe(true);
+
+    // 2. Utilizatorul A construiește o Casă la (3, 3)
+    const buildA = await (await fetch(`${base1}/api/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commandId: 'cmd-build-a',
+        actorId: 'utilizator_A',
+        command: { type: 'CONSTRUCT_BUILDING', x: 3, y: 3, buildingType: 'house', actorId: 'utilizator_A' },
+      }),
+    })).json();
+    expect(buildA.applied).toBe(true);
+
+    // 3. Utilizatorul B vede aceeași casă
+    const stateForB = await (await fetch(`${base1}/api/state`)).json();
+    const tileAt33 = stateForB.state.grid[3][3];
+    expect(tileAt33.ownerAccountId).toBe('utilizator_A');
+    expect(tileAt33.building).toBe('house');
+
+    // 4. Utilizatorul B nu poate cumpăra aceeași parcelă dacă este deja atribuită
+    const claimB = await (await fetch(`${base1}/api/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commandId: 'cmd-claim-b-conflict',
+        actorId: 'utilizator_B',
+        command: { type: 'CLAIM_PARCEL', x: 3, y: 3, actorId: 'utilizator_B' },
+      }),
+    })).json();
+    expect(claimB.applied).toBe(false);
+    expect(claimB.error).toBeTruthy();
+
+    // 5. Oprire server 1
+    server1.close();
+    db1.close();
+
+    // 6. Repornire server din aceeași bază de date SQLite
+    const db2 = new StateDB(testDbPath);
+    const auth2 = new Authority(db2, 42);
+    const { server: server2, port: port2 } = await startHttpServer(auth2, 0, {
+      rateLimiter: new TokenBucketRateLimiter(2000, 2000),
+    });
+    tmpServers.push(server2);
+    const base2 = `http://127.0.0.1:${port2}`;
+
+    // 7. Ambii utilizatori văd aceeași stare restaurată
+    const stateRestored = await (await fetch(`${base2}/api/state`)).json();
+    const restoredTile = stateRestored.state.grid[3][3];
+    expect(restoredTile.ownerAccountId).toBe('utilizator_A');
+    expect(restoredTile.building).toBe('house');
+    expect(stateRestored.version).toBeGreaterThanOrEqual(3);
+
+    // 8. Test 100 de clienți simulați concurenți pe parcela liberă (1, 1)
+    const requests = Array.from({ length: 100 }, (_, i) =>
+      fetch(`${base2}/api/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commandId: `stress-p5-${i}`,
+          actorId: `client_sim_${i}`,
+          command: { type: 'CLAIM_PARCEL', x: 1, y: 1, actorId: `client_sim_${i}` },
+        }),
+      }).then(r => r.json()),
+    );
+    const results = await Promise.all(requests);
+    const applied = results.filter((r: any) => r.applied === true).length;
+    const rejected = results.filter((r: any) => r.applied === false).length;
+    expect(applied).toBe(1);
+    expect(rejected).toBe(99);
+
+    const finalState = await (await fetch(`${base2}/api/state`)).json();
+    expect(finalState.state.grid[1][1].ownerAccountId).toMatch(/^client_sim_/);
+
+    server2.close();
+    db2.close();
+  });
 });

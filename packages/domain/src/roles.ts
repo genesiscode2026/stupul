@@ -59,3 +59,59 @@ export function checkMayorInactivity(
   // Exceeded 30 days + 7 days remedy period
   return { status: 'eligible_for_revocation', daysInactive, canRevokeImmediately: true };
 }
+
+export type DomainRole =
+  | 'citizen'
+  | 'contributor'
+  | 'mayor'
+  | 'council_member'
+  | 'technical_admin'
+  | 'financial_admin'
+  | 'commercial_operator'
+  | 'independent_custodian';
+
+/**
+ * Matrice de incompatibilitate strictă a rolurilor (P4 — Guvernanță Distribuită).
+ * Previne capturarea guvernanței și coluziunea de interese.
+ */
+export function areRolesCompatible(roleA: DomainRole, roleB: DomainRole): boolean {
+  if (roleA === roleB) return true;
+
+  // 1. Operatorul Comercial NU poate fi Custode Independent, Primar sau Consilier
+  if (roleA === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member'].includes(roleB)) {
+    return false;
+  }
+  if (roleB === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member'].includes(roleA)) {
+    return false;
+  }
+
+  // 2. Custodele Independent NU poate fi Operator Comercial, Admin Financiar sau Primar
+  if (roleA === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'mayor'].includes(roleB)) {
+    return false;
+  }
+  if (roleB === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'mayor'].includes(roleA)) {
+    return false;
+  }
+
+  // 3. Adminul Financiar NU poate fi Custode Independent
+  if (roleA === 'financial_admin' && roleB === 'independent_custodian') return false;
+  if (roleB === 'financial_admin' && roleA === 'independent_custodian') return false;
+
+  return true;
+}
+
+export function validateRoleAssignment(
+  existingRoles: DomainRole[],
+  newRole: DomainRole
+): { allowed: boolean; conflictWith?: DomainRole; reason?: string } {
+  for (const existing of existingRoles) {
+    if (!areRolesCompatible(existing, newRole)) {
+      return {
+        allowed: false,
+        conflictWith: existing,
+        reason: `Incompatibilitate constituțională între rolul ${existing} și rolul ${newRole}`,
+      };
+    }
+  }
+  return { allowed: true };
+}

@@ -14,7 +14,8 @@ import {
   History, 
   Scale,
   ShieldCheck,
-  HelpCircle
+  HelpCircle,
+  Share2
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -28,6 +29,8 @@ interface TopBarProps {
   onOpenTimeline: () => void;
   onOpenAuditLegal: () => void;
   onOpenTutorial: () => void;
+  onOpenWorkshop?: () => void;
+  onShareCity?: () => void;
 }
 
 const STAGE_NAMES = {
@@ -47,7 +50,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenCivicTasks,
   onOpenTimeline,
   onOpenAuditLegal,
-  onOpenTutorial
+  onOpenTutorial,
+  onOpenWorkshop,
+  onShareCity
 }) => {
   return (
     <header className="w-full frontier-panel border-b border-amber-900/40 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-20">
@@ -168,6 +173,27 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Pickaxe className="w-3.5 h-3.5 text-amber-300" />
           <span className="hidden sm:inline">Muncă</span>
         </button>
+
+        {onOpenWorkshop && (
+          <button
+            onClick={onOpenWorkshop}
+            className="frontier-button px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 text-amber-300 border-amber-600/40"
+            title="Atelierul Comunității (Community Workshop) — Propuneri & Merit"
+          >
+            <Hammer className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Atelier</span>
+          </button>
+        )}
+
+        {onShareCity && (
+          <button
+            onClick={onShareCity}
+            className="frontier-button px-2 py-1.5 rounded text-xs flex items-center text-amber-300"
+            title="Partajează Așezarea (Link Civic)"
+          >
+            <Share2 className="w-3.5 h-3.5 text-amber-300" />
+          </button>
+        )}
 
         <button
           onClick={onOpenTimeline}

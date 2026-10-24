@@ -7,3 +7,5 @@ export * from './legalGates.js';
 export * from './custody.js';
 export * from './security.js';
 export * from './appeals.js';
+export * from './communityWorkshop.js';
+export * from './identity.js';

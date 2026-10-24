@@ -20,5 +20,5 @@ Procedură cu consultare, versionare, perioadă de analiză, majoritate consolid
 Nicio decizie nu poate distruge ireversibil istoria. Orice schimbare are jurnal, snapshot și posibilitate tehnică de recuperare. Penalități doar în moneda jocului, fără datorii reale.
 ## Art. 9 — Comunitate și dezvoltare
 Propuneri publice fără cod nesigur, test automat, licența contribuției, evaluare distinctă de beneficiari. Distincție explicită între voturi ludice și organele juridice ale operatorului.
-## Art. 10 — Fondator pasiv
-Deținerea de IP/licență și redevență de 5% NU conferă drept de veto asupra politicii virtuale și nu presupune administrarea operatorilor. Limitele sunt definite de contracte; legea poate impune obligații personale.
+## Art. 10 — Transferabilitate Patrimonială și Redevență Pasivă de 5% (GENESIS v3.1)
+Fondatorul nu deține proprietatea intelectuală patrimonială permanentă, acțiuni, funcții de administrator sau conducere, drept de veto sau obligații de dezvoltare/mentenanță. Drepturile patrimoniale inițiale sunt transferabile către operator sau custode independent conform G-001. Fondatorul deține exclusiv un drept economic pasiv, fix, de 5% din încasările nete eligibile (G-002), care continuă contractual la fiecare transfer, cesiune, sublicențiere sau reorganizare a proiectului (G-003). Votul comunității sau decizia operatorului nu poate modifica unilateral această redevență. Drepturile morale inalienabile de autor rămân recunoscute conform legii.

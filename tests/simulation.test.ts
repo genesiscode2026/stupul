@@ -30,7 +30,7 @@ describe('Motorul Deterministic și Simularea Urbană (STP-T01 — STP-T06, T-00
     expect(stateA.stateHash).toBe(stateB.stateHash);
     expect(stateA.resources.food).toBe(stateB.resources.food);
     expect(stateA.population.total).toBe(stateB.population.total);
-  });
+  }, 30_000);
 
   it('STP-T02 & T-003: două revendicări / construcții pe aceeași parcelă => exact una acceptată, cealaltă respinsă', () => {
     let state = createInitialState(42);

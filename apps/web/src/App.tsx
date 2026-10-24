@@ -17,6 +17,7 @@ import { CivicTasksModal } from './components/CivicTasksModal.js';
 import { TimelineModal } from './components/TimelineModal.js';
 import { AuditLegalModal } from './components/AuditLegalModal.js';
 import { TutorialModal } from './components/TutorialModal.js';
+import { CommunityWorkshopModal } from './components/CommunityWorkshopModal.js';
 
 const storage = new OfflineStorage();
 
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
   const [isCivicTasksOpen, setIsCivicTasksOpen] = useState<boolean>(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(false);
   const [isAuditLegalOpen, setIsAuditLegalOpen] = useState<boolean>(false);
+  const [isWorkshopOpen, setIsWorkshopOpen] = useState<boolean>(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(() => {
     try {
       return !localStorage.getItem('stupul_tutorial_seen');
@@ -146,6 +148,19 @@ export const App: React.FC = () => {
     ? gameState.grid[selectedCoord.y][selectedCoord.x] 
     : null;
 
+  const handleShareCity = useCallback(() => {
+    const url = `${window.location.origin}/?visit=1&tick=${gameState.tick}&stage=${gameState.stage}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Link civic copiat în clipboard! Trimite-l comunității.', 'success');
+      }).catch(() => {
+        showToast(`Link așezare: ${url}`, 'info');
+      });
+    } else {
+      showToast(`Link așezare: ${url}`, 'info');
+    }
+  }, [gameState.tick, gameState.stage, showToast]);
+
   return (
     <div className="relative w-screen h-screen flex flex-col bg-stone-950 text-stone-100 overflow-hidden">
       <TopBar
@@ -159,6 +174,8 @@ export const App: React.FC = () => {
         onOpenTimeline={() => setIsTimelineOpen(true)}
         onOpenAuditLegal={() => setIsAuditLegalOpen(true)}
         onOpenTutorial={() => setIsTutorialOpen(true)}
+        onOpenWorkshop={() => setIsWorkshopOpen(true)}
+        onShareCity={handleShareCity}
       />
 
       {/* Mission / Objective Banner */}
@@ -251,6 +268,13 @@ export const App: React.FC = () => {
             setIsPlaying(true);
             showToast('Simularea orașului a pornit. Construiește prima ta Casă!', 'success');
           }}
+        />
+      )}
+
+      {isWorkshopOpen && (
+        <CommunityWorkshopModal
+          isOpen={isWorkshopOpen}
+          onClose={() => setIsWorkshopOpen(false)}
         />
       )}
 

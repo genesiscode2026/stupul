@@ -211,6 +211,7 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, selectedCoord, hoveredCoord, zoom, offset, gridToScreen]);
 
   // Helper to draw buildings procedurally
