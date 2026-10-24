@@ -61,14 +61,56 @@ export function checkMayorInactivity(
 }
 
 export type DomainRole =
+  | 'guest'
   | 'citizen'
+  | 'property_owner'
   | 'contributor'
-  | 'mayor'
+  | 'reviewer'
   | 'council_member'
+  | 'mayor'
   | 'technical_admin'
   | 'financial_admin'
   | 'commercial_operator'
   | 'independent_custodian';
+
+export type Permission =
+  | 'VIEW_STATE'
+  | 'WORK_CIVIC_TASK'
+  | 'VOTE_BALLOT'
+  | 'CLAIM_PARCEL'
+  | 'BUILD_ON_PARCEL'
+  | 'SUBMIT_CONTRIBUTION'
+  | 'REVIEW_CONTRIBUTION'
+  | 'PROPOSE_POLICY'
+  | 'VOTE_COUNCIL'
+  | 'EXECUTE_MAYOR_ORDER'
+  | 'MANAGE_INFRASTRUCTURE'
+  | 'GENERATE_ROYALTY_CALLDATA'
+  | 'OPERATE_DISTRIBUTION_PORTAL'
+  | 'AUDIT_ROYALTY_COMPLIANCE'
+  | 'VETO_NON_COMPLIANT_FORK';
+
+export const ROLE_PERMISSIONS: Record<DomainRole, Permission[]> = {
+  guest: ['VIEW_STATE'],
+  citizen: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT'],
+  property_owner: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT', 'CLAIM_PARCEL', 'BUILD_ON_PARCEL'],
+  contributor: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT', 'SUBMIT_CONTRIBUTION'],
+  reviewer: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT', 'SUBMIT_CONTRIBUTION', 'REVIEW_CONTRIBUTION'],
+  council_member: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT', 'PROPOSE_POLICY', 'VOTE_COUNCIL'],
+  mayor: ['VIEW_STATE', 'WORK_CIVIC_TASK', 'VOTE_BALLOT', 'PROPOSE_POLICY', 'VOTE_COUNCIL', 'EXECUTE_MAYOR_ORDER'],
+  technical_admin: ['VIEW_STATE', 'MANAGE_INFRASTRUCTURE'],
+  financial_admin: ['VIEW_STATE', 'GENERATE_ROYALTY_CALLDATA'],
+  commercial_operator: ['VIEW_STATE', 'OPERATE_DISTRIBUTION_PORTAL'],
+  independent_custodian: ['VIEW_STATE', 'AUDIT_ROYALTY_COMPLIANCE', 'VETO_NON_COMPLIANT_FORK'],
+};
+
+export function hasPermission(roles: DomainRole[], permission: Permission): boolean {
+  for (const r of roles) {
+    const perms = ROLE_PERMISSIONS[r];
+    if (perms && perms.includes(permission)) return true;
+  }
+  return false;
+}
 
 /**
  * Matrice de incompatibilitate strictă a rolurilor (P4 — Guvernanță Distribuită).
@@ -77,25 +119,29 @@ export type DomainRole =
 export function areRolesCompatible(roleA: DomainRole, roleB: DomainRole): boolean {
   if (roleA === roleB) return true;
 
-  // 1. Operatorul Comercial NU poate fi Custode Independent, Primar sau Consilier
-  if (roleA === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member'].includes(roleB)) {
+  // 1. Operatorul Comercial NU poate fi Custode Independent, Primar, Consilier sau Admin Tehnic
+  if (roleA === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member', 'technical_admin'].includes(roleB)) {
     return false;
   }
-  if (roleB === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member'].includes(roleA)) {
-    return false;
-  }
-
-  // 2. Custodele Independent NU poate fi Operator Comercial, Admin Financiar sau Primar
-  if (roleA === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'mayor'].includes(roleB)) {
-    return false;
-  }
-  if (roleB === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'mayor'].includes(roleA)) {
+  if (roleB === 'commercial_operator' && ['independent_custodian', 'mayor', 'council_member', 'technical_admin'].includes(roleA)) {
     return false;
   }
 
-  // 3. Adminul Financiar NU poate fi Custode Independent
-  if (roleA === 'financial_admin' && roleB === 'independent_custodian') return false;
-  if (roleB === 'financial_admin' && roleA === 'independent_custodian') return false;
+  // 2. Custodele Independent NU poate fi Operator Comercial, Admin Financiar, Admin Tehnic sau Primar
+  if (roleA === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'technical_admin', 'mayor'].includes(roleB)) {
+    return false;
+  }
+  if (roleB === 'independent_custodian' && ['commercial_operator', 'financial_admin', 'technical_admin', 'mayor'].includes(roleA)) {
+    return false;
+  }
+
+  // 3. Adminul Financiar NU poate fi Custode Independent sau Operator Comercial
+  if (roleA === 'financial_admin' && ['independent_custodian', 'commercial_operator'].includes(roleB)) return false;
+  if (roleB === 'financial_admin' && ['independent_custodian', 'commercial_operator'].includes(roleA)) return false;
+
+  // 4. Adminul Tehnic NU poate fi Custode Independent sau Operator Comercial
+  if (roleA === 'technical_admin' && ['independent_custodian', 'commercial_operator'].includes(roleB)) return false;
+  if (roleB === 'technical_admin' && ['independent_custodian', 'commercial_operator'].includes(roleA)) return false;
 
   return true;
 }
