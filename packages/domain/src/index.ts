@@ -6,3 +6,4 @@ export * from './royalties.js';
 export * from './legalGates.js';
 export * from './custody.js';
 export * from './security.js';
+export * from './appeals.js';
