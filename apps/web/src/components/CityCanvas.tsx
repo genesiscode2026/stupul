@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { GameState, BuildingType, BUILDING_DEFINITIONS } from '@stupul/engine';
+import { GameState, BuildingType, BUILDING_DEFINITIONS, calculateChunkOccupancy } from '@stupul/engine';
 
 interface CityCanvasProps {
   state: GameState;
@@ -22,6 +22,10 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredCoord, setHoveredCoord] = useState<{ x: number; y: number } | null>(null);
+
+  // Grad de ocupare a orașului și prag de extindere a frontierei (>= 75%)
+  const occupancyRate = calculateChunkOccupancy(state.grid);
+  const isExpansionTriggered = occupancyRate >= 0.75;
 
   // Isometric tile geometry constants
   const baseTileWidth = 64;
@@ -199,7 +203,29 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
         }
       }
 
-      // 4. Draw Animated Living Citizens (walking between road nodes)
+      // 4. Desenare Frontieră Extinsă de Aur (când gradul de ocupare depășește 75%)
+      if (isExpansionTriggered) {
+        const pulse = (Math.sin(time * 3) + 1) / 2; // 0..1
+        const pTop = gridToScreen(0, 0, zoom, offset);
+        const pRight = gridToScreen(state.gridWidth, 0, zoom, offset);
+        const pBottom = gridToScreen(state.gridWidth, state.gridHeight, zoom, offset);
+        const pLeft = gridToScreen(0, state.gridHeight, zoom, offset);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pTop.x, pTop.y);
+        ctx.lineTo(pRight.x, pRight.y);
+        ctx.lineTo(pBottom.x, pBottom.y);
+        ctx.lineTo(pLeft.x, pLeft.y);
+        ctx.closePath();
+        ctx.strokeStyle = `rgba(245, 197, 66, ${0.4 + pulse * 0.5})`;
+        ctx.lineWidth = 3 * zoom;
+        ctx.setLineDash([8 * zoom, 4 * zoom]);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 5. Draw Animated Living Citizens (walking between road nodes)
       drawSimulatedCitizens(ctx, zoom, offset, time);
 
       ctx.restore();
@@ -564,6 +590,17 @@ export const CityCanvas: React.FC<CityCanvasProps> = ({
           ⌖
         </button>
       </div>
+
+      {/* Floating City Expansion Banner (Triggered >= 75% Occupancy) */}
+      {isExpansionTriggered && (
+        <div
+          id="city-expansion-banner"
+          className="absolute top-20 right-6 pointer-events-none frontier-panel px-4 py-2 rounded border border-amber-500/70 bg-amber-950/90 text-amber-200 text-xs shadow-2xl flex items-center gap-2 animate-pulse z-10"
+        >
+          <span className="text-amber-400 font-bold">✨ FRONTIERĂ EXTINSĂ ({(occupancyRate * 100).toFixed(0)}% Ocupare)</span>
+          <span>• 4 Districte Noi Deblocate la Orizont!</span>
+        </div>
+      )}
 
       {/* Hover info tooltip */}
       {hoveredCoord && (
