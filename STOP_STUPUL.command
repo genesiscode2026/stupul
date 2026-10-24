@@ -88,8 +88,13 @@ BACKEND_PID_FILE="$RUNTIME_DIR/stupul_backend.pid"
 if [ -f "$BACKEND_PID_FILE" ]; then
   BPID="$(tr -d '[:space:]' < "$BACKEND_PID_FILE")"
   if [ -n "$BPID" ] && ps -p "$BPID" >/dev/null 2>&1; then
-    say "Opresc serverul autoritativ multiplayer (PID $BPID)..."
-    kill -TERM "$BPID" 2>/dev/null || true
+    CMD_LINE_B="$(ps -p "$BPID" -o command= 2>/dev/null || true)"
+    if echo "$CMD_LINE_B" | grep -q "$PROJECT_DIR"; then
+      say "Opresc serverul autoritativ multiplayer (PID $BPID)..."
+      kill -TERM "$BPID" 2>/dev/null || true
+    else
+      warn "PID-ul de backend $BPID nu aparține STUPUL (comandă: $CMD_LINE_B); ignorat pentru siguranță."
+    fi
   fi
   rm -f "$BACKEND_PID_FILE"
 fi

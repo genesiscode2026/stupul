@@ -58,7 +58,9 @@ port_of_pid() {
 
 open_browser() {
   say "Deschid jocul în browser: $1"
-  open "$1" 2>/dev/null || true
+  if [ "${NO_OPEN:-0}" != "1" ]; then
+    open "$1" 2>/dev/null || true
+  fi
 }
 
 # 1. Dacă există deja un proces STUPUL viu (PID file valid), deschidem doar browserul
