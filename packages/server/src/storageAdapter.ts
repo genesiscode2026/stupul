@@ -20,6 +20,13 @@ export interface StorageAdapter {
   getEventsSince(seq: number): EventRecord[];
   transaction<T>(fn: () => T): T;
   close(): void;
+
+  // Persistență Sesiuni & Utilizatori (Securitate P0 Cloud & Node)
+  saveSession?(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void;
+  loadSession?(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null;
+  deleteSession?(token: string): void;
+  saveUser?(actorId: string, identityJson: string): void;
+  loadUser?(actorId: string): string | null;
 }
 
 /**
@@ -52,7 +59,45 @@ export class NodeSqliteStorageAdapter implements StorageAdapter {
         state_hash TEXT NOT NULL,
         at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        token TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        identity_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS auth_users (
+        actor_id TEXT PRIMARY KEY,
+        identity_json TEXT NOT NULL
+      );
     `);
+  }
+
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void {
+    this.db.prepare('INSERT OR REPLACE INTO auth_sessions (token, actor_id, identity_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .run(token, actorId, identityJson, createdAt, expiresAt);
+  }
+
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null {
+    const row = this.db.prepare('SELECT actor_id, identity_json, created_at, expires_at FROM auth_sessions WHERE token = ?').get(token) as
+      | { actor_id: string; identity_json: string; created_at: number; expires_at: number }
+      | undefined;
+    return row ? { actorId: row.actor_id, identityJson: row.identity_json, createdAt: row.created_at, expiresAt: row.expires_at } : null;
+  }
+
+  deleteSession(token: string): void {
+    this.db.prepare('DELETE FROM auth_sessions WHERE token = ?').run(token);
+  }
+
+  saveUser(actorId: string, identityJson: string): void {
+    this.db.prepare('INSERT OR REPLACE INTO auth_users (actor_id, identity_json) VALUES (?, ?)').run(actorId, identityJson);
+  }
+
+  loadUser(actorId: string): string | null {
+    const row = this.db.prepare('SELECT identity_json FROM auth_users WHERE actor_id = ?').get(actorId) as
+      | { identity_json: string }
+      | undefined;
+    return row ? row.identity_json : null;
   }
 
   loadState(): { json: string; version: number } | null {
@@ -109,6 +154,29 @@ export class MemoryStorageAdapter implements StorageAdapter {
   private commands = new Map<string, { result: string; appliedAt: number }>();
   private events: EventRecord[] = [];
   private currentSeq = 0;
+  private sessions = new Map<string, { actorId: string; identityJson: string; createdAt: number; expiresAt: number }>();
+  private users = new Map<string, string>();
+
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void {
+    this.sessions.set(token, { actorId, identityJson, createdAt, expiresAt });
+  }
+
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null {
+    const s = this.sessions.get(token);
+    return s ? { ...s } : null;
+  }
+
+  deleteSession(token: string): void {
+    this.sessions.delete(token);
+  }
+
+  saveUser(actorId: string, identityJson: string): void {
+    this.users.set(actorId, identityJson);
+  }
+
+  loadUser(actorId: string): string | null {
+    return this.users.get(actorId) ?? null;
+  }
 
   loadState(): { json: string; version: number } | null {
     return this.state ? { ...this.state } : null;
@@ -165,6 +233,8 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.state = null;
     this.commands.clear();
     this.events = [];
+    this.sessions.clear();
+    this.users.clear();
   }
 }
 
@@ -219,7 +289,49 @@ export class CloudflareD1StorageAdapter implements StorageAdapter {
         state_hash TEXT NOT NULL,
         at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        token TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        identity_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS auth_users (
+        actor_id TEXT PRIMARY KEY,
+        identity_json TEXT NOT NULL
+      );
     `);
+  }
+
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void {
+    this.inMemoryCache.saveSession(token, actorId, identityJson, createdAt, expiresAt);
+    if (this.d1) {
+      this.d1.prepare('INSERT OR REPLACE INTO auth_sessions (token, actor_id, identity_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+        .bind(token, actorId, identityJson, createdAt, expiresAt)
+        .run();
+    }
+  }
+
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null {
+    return this.inMemoryCache.loadSession(token);
+  }
+
+  deleteSession(token: string): void {
+    this.inMemoryCache.deleteSession(token);
+    if (this.d1) {
+      this.d1.prepare('DELETE FROM auth_sessions WHERE token = ?').bind(token).run();
+    }
+  }
+
+  saveUser(actorId: string, identityJson: string): void {
+    this.inMemoryCache.saveUser(actorId, identityJson);
+    if (this.d1) {
+      this.d1.prepare('INSERT OR REPLACE INTO auth_users (actor_id, identity_json) VALUES (?, ?)').bind(actorId, identityJson).run();
+    }
+  }
+
+  loadUser(actorId: string): string | null {
+    return this.inMemoryCache.loadUser(actorId);
   }
 
   loadState(): { json: string; version: number } | null {
@@ -320,19 +432,98 @@ export class DurableObjectSqlStorageAdapter implements StorageAdapter {
         at INTEGER NOT NULL
       );
     `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS auth_sessions (
+        token TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        identity_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS auth_users (
+        actor_id TEXT PRIMARY KEY,
+        identity_json TEXT NOT NULL
+      );
+    `);
   }
 
   private loadInitialState(): void {
     if (!this.sql) return;
     try {
       const cursor = this.sql.exec('SELECT json, version FROM state WHERE id = 1');
-      const row = cursor.one() as { json: string; version: number } | undefined;
-      if (row) {
+      const rows = typeof (cursor as any).toArray === 'function' ? (cursor as any).toArray() : Array.from(cursor);
+      if (rows.length > 0 && rows[0]) {
+        const row = rows[0] as { json: string; version: number };
         this.inMemoryCache.saveState(row.json, row.version);
       }
     } catch {
       // Ignoră dacă tabela e proaspăt creată și goală
     }
+  }
+
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void {
+    this.inMemoryCache.saveSession(token, actorId, identityJson, createdAt, expiresAt);
+    if (this.sql) {
+      this.sql.exec(
+        'INSERT OR REPLACE INTO auth_sessions (token, actor_id, identity_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+        token,
+        actorId,
+        identityJson,
+        createdAt,
+        expiresAt
+      );
+    }
+  }
+
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null {
+    if (this.sql) {
+      try {
+        const cursor = this.sql.exec('SELECT actor_id, identity_json, created_at, expires_at FROM auth_sessions WHERE token = ?', token);
+        const rows = typeof (cursor as any).toArray === 'function' ? (cursor as any).toArray() : Array.from(cursor);
+        if (rows.length > 0 && rows[0]) {
+          const row = rows[0] as { actor_id: string; identity_json: string; created_at: number; expires_at: number };
+          const session = { actorId: row.actor_id, identityJson: row.identity_json, createdAt: row.created_at, expiresAt: row.expires_at };
+          this.inMemoryCache.saveSession(token, session.actorId, session.identityJson, session.createdAt, session.expiresAt);
+          return session;
+        }
+      } catch {
+        // Fallback la cache
+      }
+    }
+    return this.inMemoryCache.loadSession(token);
+  }
+
+  deleteSession(token: string): void {
+    this.inMemoryCache.deleteSession(token);
+    if (this.sql) {
+      try {
+        this.sql.exec('DELETE FROM auth_sessions WHERE token = ?', token);
+      } catch {}
+    }
+  }
+
+  saveUser(actorId: string, identityJson: string): void {
+    this.inMemoryCache.saveUser(actorId, identityJson);
+    if (this.sql) {
+      this.sql.exec('INSERT OR REPLACE INTO auth_users (actor_id, identity_json) VALUES (?, ?)', actorId, identityJson);
+    }
+  }
+
+  loadUser(actorId: string): string | null {
+    if (this.sql) {
+      try {
+        const cursor = this.sql.exec('SELECT identity_json FROM auth_users WHERE actor_id = ?', actorId);
+        const rows = typeof (cursor as any).toArray === 'function' ? (cursor as any).toArray() : Array.from(cursor);
+        if (rows.length > 0 && rows[0]) {
+          const val = (rows[0] as { identity_json: string }).identity_json;
+          this.inMemoryCache.saveUser(actorId, val);
+          return val;
+        }
+      } catch {}
+    }
+    return this.inMemoryCache.loadUser(actorId);
   }
 
   loadState(): { json: string; version: number } | null {
@@ -347,6 +538,15 @@ export class DurableObjectSqlStorageAdapter implements StorageAdapter {
   }
 
   hasCommand(commandId: string): boolean {
+    if (this.sql) {
+      try {
+        const cursor = this.sql.exec('SELECT 1 FROM commands WHERE command_id = ?', commandId);
+        const rows = typeof (cursor as any).toArray === 'function' ? (cursor as any).toArray() : Array.from(cursor);
+        if (rows.length > 0) return true;
+      } catch {
+        // Fallback la cache-ul în memorie
+      }
+    }
     return this.inMemoryCache.hasCommand(commandId);
   }
 
@@ -373,6 +573,15 @@ export class DurableObjectSqlStorageAdapter implements StorageAdapter {
   }
 
   getEventsSince(seq: number): EventRecord[] {
+    if (this.sql) {
+      try {
+        const cursor = this.sql.exec('SELECT * FROM events WHERE seq > ? ORDER BY seq ASC', seq);
+        const rows = typeof (cursor as any).toArray === 'function' ? (cursor as any).toArray() : Array.from(cursor);
+        return rows as unknown as EventRecord[];
+      } catch {
+        // Fallback la cache-ul în memorie
+      }
+    }
     return this.inMemoryCache.getEventsSince(seq);
   }
 

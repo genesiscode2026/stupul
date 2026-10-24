@@ -64,7 +64,7 @@ export function startHttpServer(
   } else {
     multiLimiter = new MultiDimensionalRateLimiter();
   }
-  const auth = opts?.authManager ?? new AuthManager();
+  const auth = opts?.authManager ?? new AuthManager('localhost', 'STUPUL Civilization', 300_000, 86_400_000, undefined, authority.getDB());
 
   const server = createServer(async (req, res) => {
     setCorsHeaders(res);

@@ -61,6 +61,10 @@ export class Authority {
     return this.writeDisabled;
   }
 
+  getDB(): StateDB {
+    return this.db;
+  }
+
   applyCommand(command: EngineCommand, commandId: string, actorId: string): ApplyResult {
     // Idempotență: aceeași comandă (commandId) nu se aplică de două ori.
     if (this.db.hasCommand(commandId)) {

@@ -18,6 +18,14 @@ export interface AuthChallenge {
   consumed: boolean;
 }
 
+export interface AuthStorageLike {
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void;
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null;
+  deleteSession(token: string): void;
+  saveUser?(actorId: string, identityJson: string): void;
+  loadUser?(actorId: string): string | null;
+}
+
 export class AuthManager {
   private challenges = new Map<string, AuthChallenge>();
   private sessions = new Map<string, AuthSession>();
@@ -30,7 +38,8 @@ export class AuthManager {
     public readonly rpName: string = 'STUPUL Civilization',
     private readonly challengeTtlMs: number = 300_000, // 5 min
     private readonly sessionTtlMs: number = 86_400_000, // 24 hours
-    allowedOrigins?: string[]
+    allowedOrigins?: string[],
+    private readonly storage?: AuthStorageLike
   ) {
     this.allowedOrigins = new Set(allowedOrigins ?? [
       'http://localhost:5173',
@@ -231,12 +240,33 @@ export class AuthManager {
   verifySession(token: string): { valid: boolean; identity?: UserIdentity; error?: string } {
     if (!token) return { valid: false, error: 'missing token' };
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim();
-    const s = this.sessions.get(cleanToken);
+    let s = this.sessions.get(cleanToken);
+    if (!s && this.storage) {
+      try {
+        const stored = this.storage.loadSession(cleanToken);
+        if (stored) {
+          const parsedIdentity = JSON.parse(stored.identityJson) as UserIdentity;
+          s = {
+            token: cleanToken,
+            actorId: stored.actorId,
+            identity: parsedIdentity,
+            createdAtMs: stored.createdAt,
+            expiresAtMs: stored.expiresAt,
+          };
+          this.sessions.set(cleanToken, s);
+        }
+      } catch (err) {
+        console.error('[AuthManager] Error restoring session from storage:', err);
+      }
+    }
     if (!s) {
       return { valid: false, error: 'session not found' };
     }
     if (Date.now() > s.expiresAtMs) {
       this.sessions.delete(cleanToken);
+      if (this.storage) {
+        try { this.storage.deleteSession(cleanToken); } catch {}
+      }
       return { valid: false, error: 'session expired' };
     }
     s.identity.lastActiveMs = Date.now();
@@ -245,6 +275,9 @@ export class AuthManager {
 
   revokeSession(token: string): boolean {
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim();
+    if (this.storage) {
+      try { this.storage.deleteSession(cleanToken); } catch {}
+    }
     return this.sessions.delete(cleanToken);
   }
 
@@ -253,6 +286,9 @@ export class AuthManager {
     for (const [token, s] of this.sessions.entries()) {
       if (s.actorId === actorId) {
         this.sessions.delete(token);
+        if (this.storage) {
+          try { this.storage.deleteSession(token); } catch {}
+        }
         count++;
       }
     }
@@ -270,6 +306,13 @@ export class AuthManager {
       expiresAtMs: now + this.sessionTtlMs,
     };
     this.sessions.set(token, session);
+    if (this.storage) {
+      try {
+        this.storage.saveSession(token, identity.actorId, JSON.stringify(identity), session.createdAtMs, session.expiresAtMs);
+      } catch (err) {
+        console.error('[AuthManager] Error saving session to storage:', err);
+      }
+    }
     return session;
   }
 }

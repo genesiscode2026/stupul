@@ -44,6 +44,38 @@ export class StateDB {
     return this.adapter.transaction(fn);
   }
 
+  saveSession(token: string, actorId: string, identityJson: string, createdAt: number, expiresAt: number): void {
+    if (this.adapter.saveSession) {
+      this.adapter.saveSession(token, actorId, identityJson, createdAt, expiresAt);
+    }
+  }
+
+  loadSession(token: string): { actorId: string; identityJson: string; createdAt: number; expiresAt: number } | null {
+    if (this.adapter.loadSession) {
+      return this.adapter.loadSession(token);
+    }
+    return null;
+  }
+
+  deleteSession(token: string): void {
+    if (this.adapter.deleteSession) {
+      this.adapter.deleteSession(token);
+    }
+  }
+
+  saveUser(actorId: string, identityJson: string): void {
+    if (this.adapter.saveUser) {
+      this.adapter.saveUser(actorId, identityJson);
+    }
+  }
+
+  loadUser(actorId: string): string | null {
+    if (this.adapter.loadUser) {
+      return this.adapter.loadUser(actorId);
+    }
+    return null;
+  }
+
   close(): void {
     this.adapter.close();
   }
