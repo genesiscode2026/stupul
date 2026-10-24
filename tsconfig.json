@@ -4,6 +4,7 @@
     { "path": "./packages/domain" },
     { "path": "./packages/engine" },
     { "path": "./packages/shared" },
-    { "path": "./packages/genesis-integrity" }
+    { "path": "./packages/genesis-integrity" },
+    { "path": "./packages/server" }
   ]
 }
