@@ -2,7 +2,7 @@
  * STUPUL GENESIS v3.5 — Live Public Cloudflare Production Browser & Multiplayer E2E Verification
  * 
  * Verifies:
- * 1. Live Public HTTPS connectivity to https://stupul-civilization.stupul.workers.dev
+ * 1. Live Public HTTPS connectivity to target STUPUL_PUBLIC_URL (or localhost)
  * 2. Visual rendering in headless Chrome (Desktop 1280x800 & Mobile 390x844).
  * 3. Guest vs Citizen separation on live edge:
  *    - User B (Guest) attempts building -> 403 Forbidden.
@@ -17,7 +17,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const PUBLIC_URL = process.env.STUPUL_PUBLIC_URL || 'https://stupul-civilization.stupul.workers.dev';
+const PUBLIC_URL = process.env.STUPUL_PUBLIC_URL;
+if (!PUBLIC_URL) {
+  console.error('ERROR: Set STUPUL_PUBLIC_URL (e.g. Cloudflare Workers deployment under chitara.trading@proton.me or http://127.0.0.1:8787)');
+  process.exit(1);
+}
 const ARTIFACT_DIR = '/Users/severmarcus/.gemini/antigravity/brain/f3398b89-20c2-4eeb-bcb5-8c47c19f2f5e';
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));

@@ -1,7 +1,7 @@
 # STUPUL — Persistent Democratic Civilisation Game (GENESIS v3.5)
 
 [![STUPUL CI](https://github.com/genesiscode2026/stupul/actions/workflows/ci.yml/badge.svg)](https://github.com/genesiscode2026/stupul/actions)
-[![Live URL](https://img.shields.io/badge/Live_Game-Workers.dev-emerald)](https://stupul-civilization.stupul.workers.dev)
+[![Cloudflare Workers](https://img.shields.io/badge/Deploy-Cloudflare_Workers-f38020)](wrangler.toml)
 [![Tests](https://img.shields.io/badge/Vitest-169%20Passed-brightgreen)](tests/)
 [![Zero-PII](https://img.shields.io/badge/Privacy-Zero--PII%20Passkeys-blue)](packages/domain/src/identity.ts)
 [![License](https://img.shields.io/badge/License-Source--Available-amber)](LICENSE.md)
@@ -12,9 +12,8 @@
 
 ## <a name="română"></a>🇷🇴 Română
 
-### 🌐 Joacă Acum Live (Fără Instalare / Gratuit)
-Jocul rulează pe internet pe infrastructura globală Cloudflare Edge:
-👉 **[https://stupul-civilization.stupul.workers.dev](https://stupul-civilization.stupul.workers.dev)**
+### 🌐 Rulare & Deploy pe Cloudflare Edge
+Proiectul este pregătit pentru rulare locală și deploy pe infrastructura Cloudflare Edge (`npx wrangler deploy` sub contul autorizat `chitara.trading@proton.me`). Endpoint-ul legacy de test a fost dezafectat; pentru rulare locală imediată folosiți `npm run dev`.
 
 ### Despre STUPUL
 **STUPUL** este o simulare civică și urbană persistentă, multiplayer în timp real, construită pe un motor deterministic și o arhitectură distribuită democratică. Jucătorii colaborează pentru a dezvolta o așezare de frontieră („Avanpostul Văii”), gestionând resurse (hrană, materiale, credite virtuale), rezolvând infrastructura de apă (minijocul Apeductului) și votând legi civice prin vot pătratic.
@@ -59,9 +58,8 @@ npm run build
 
 ## <a name="english"></a>🇬🇧 English
 
-### 🌐 Play Live Now (No Install / 100% Free)
-The game runs on live Cloudflare Edge infrastructure:
-👉 **[https://stupul-civilization.stupul.workers.dev](https://stupul-civilization.stupul.workers.dev)**
+### 🌐 Run Locally & Deploy to Cloudflare Edge
+The project runs locally and deploys cleanly to Cloudflare Workers Edge (`npx wrangler deploy` under authorized contact `chitara.trading@proton.me`). Legacy test worker endpoint has been decommissioned; use `npm run dev` for immediate local testing.
 
 ### About STUPUL
 **STUPUL** is a real-time persistent civic civilization game built on a deterministic tick engine and democratic state-machine architecture. Citizens co-create a frontier settlement ("Valley Outpost"), balancing food, construction materials, virtual credits, infrastructure puzzle minigames, and passing community policies through quadratic voting.
